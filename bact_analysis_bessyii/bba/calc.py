@@ -1,3 +1,4 @@
+from bact_math_utils.tune import tune_change
 from bact_analysis.bba.calc import angle_to_offset as a2og
 import bact2_bessyii.magnets
 import xarray as xr
@@ -14,6 +15,21 @@ def load_calib_data():
         .assign_coords(name=df.index)
     )
     return calib
+
+
+def predict_tune_change(
+    name: str, dI: float, *, beta: float, f: float = 500e6, nb: int = 400
+) -> float:
+    """Use betatron function to predict tune change
+    """
+    calib = load_calib_data()
+
+    hw2phys = calib.hw2phys.sel(name=name)
+    length = calib.length.sel(name=name)
+
+    dk = hw2phys * dI
+    dT = tune_change(dk, beta, length=length, f=f, nb=nb)
+    return dT
 
 
 def angle_to_offset(angles, *, names):
