@@ -105,21 +105,29 @@ class MuxerPolarity:
 
 
 muxer_polarities = dict(
-    # Q1=MuxerPolarity(x=Polarity.pos, y=Polarity.neg),
-    # Q2=MuxerPolarity(x=Polarity.neg, y=Polarity.pos),
-    # Q3=MuxerPolarity(x=Polarity.neg, y=Polarity.pos),
-    # Q4=MuxerPolarity(x=Polarity.pos, y=Polarity.neg),
-    # Q5=MuxerPolarity(x=Polarity.neg, y=Polarity.pos),
+    # horizontal focusing
     Q1=MuxerPolarity(x=Polarity.neg, y=Polarity.pos),
+    # vertical focusing
     Q2=MuxerPolarity(x=Polarity.pos, y=Polarity.neg),
+    # vertical focusing
     Q3=MuxerPolarity(x=Polarity.pos, y=Polarity.neg),
+    # horizontal focusing
     Q4=MuxerPolarity(x=Polarity.neg, y=Polarity.pos),
+    # vertical focusing
     Q5=MuxerPolarity(x=Polarity.pos, y=Polarity.neg),
-    Q1M1T=MuxerPolarity(x=Polarity.neg, y=Polarity.pos),
-    Q2M1T=MuxerPolarity(x=Polarity.pos, y=Polarity.neg),
-    Q3M1T=MuxerPolarity(x=Polarity.pos, y=Polarity.neg),
-    Q4M1T=MuxerPolarity(x=Polarity.neg, y=Polarity.pos),
-    Q5M1T=MuxerPolarity(x=Polarity.pos, y=Polarity.neg),
+)
+
+quad_polarities = dict(
+    # horizontal focusing
+    Q1=Polarity.pos,
+    # vertical focusing
+    Q2=Polarity.neg,
+    # vertical focusing
+    Q3=Polarity.neg,
+    # horizontal focusing
+    Q4=Polarity.pos,
+    # vertical focusing
+    Q5=Polarity.neg
 )
 
 
@@ -281,7 +289,7 @@ def main(uid, color="b", marker="."):
             ]
         )
 
-        pol = muxer_polarities[family_name]
+        pol = quad_polarities[family_name]
         # a consistency issue ..
         names = [name.lower() for name in sel.coords["name"].values]
         logger.debug("Interpolating twiss for %s", names)
@@ -306,16 +314,17 @@ def main(uid, color="b", marker="."):
         beta_y = t_twiss.beta.sel(plane="y")  # .values
 
         q_l = quad_length[family_name]
-        s_x = beta_x * pol.x
-        s_y = beta_y * pol.y
+        s_x = - beta_x * pol
+        s_y = - beta_y * -pol
 
         # from Peter's hand note
         delta_g = 0.796 / 5.
         brho = 5.67044
         delta_k = delta_g / brho
         pinv4 = 1 / (np.pi * 4)
-        dq_x = beta_x * delta_k * q_l * pol.x * pinv4
-        dq_y = beta_y * delta_k * q_l * pol.y * pinv4
+        dq_x = - beta_x * delta_k * q_l * pol * pinv4
+        # quad convention ... vertical other to horizontal one
+        dq_y = - beta_y * delta_k * q_l * -pol * pinv4
 
         f_rev = 1.25e6
         df_x = dq_x  * f_rev / 1e3
@@ -337,7 +346,7 @@ def main(uid, color="b", marker="."):
         )
         ax_x.plot(names, df_x, "x--", linewidth=0.5, color=color)
         #ta_x.plot(names, s_x, linestyle="-", color=color, linewidth=0.5, marker=".")
-        pol_txt = "- " if pol.x == Polarity.neg else ""
+        pol_txt = "- " if pol == Polarity.neg else ""
         ta_x.set_ylabel(pol_txt + r"$\beta_x$ [m]")
 
         ax_x.set_ylabel("dQ$_x$/dI [kHz/A]")
@@ -351,7 +360,7 @@ def main(uid, color="b", marker="."):
         )
         ax_y.plot(names, df_y, "x--", linewidth=0.5, color=color)
         #ta_y.plot(names, s_y, linestyle="-", color=color, linewidth=0.5, marker=".")
-        pol_txt = "- " if pol.y == Polarity.neg else ""
+        pol_txt = "- " if pol == Polarity.pos else ""
         ta_y.set_ylabel(pol_txt + r"$\beta_y$ [m]")
 
         ax_y.set_ylabel("dQ$_y$/dI [kHz/A]")
