@@ -46,7 +46,7 @@ def angle_to_offset(angles, *, names):
     return res
 
 
-def angles_to_offset_all(angles: xr.DataArray, *, names: Sequence):
+def angles_to_offset_all(angles: xr.DataArray, *, names: Sequence, tf_scale: float=1.0):
     """
 
     angles are assumed to exist for the names both planes and results and errors
@@ -63,8 +63,8 @@ def angles_to_offset_all(angles: xr.DataArray, *, names: Sequence):
     def f(angle):
         # def angle_to_offset(tf: float, length: float, polarity: int, alpha: float) -> float:
         t_length = length
-        t_length = 1
-        return a2og(hw2phys, t_length, polarity, angle * angle_scale)
+        # t_length = 1
+        return a2og(hw2phys, t_length, polarity, angle * angle_scale, tf_scale=tf_scale)
 
     sel = angles.fit_params.sel(name=names)
     x = f(sel.sel(parameter="scaled_angle", result="value", plane="x"))
