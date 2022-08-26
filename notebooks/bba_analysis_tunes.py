@@ -11,6 +11,8 @@ import xarray as xr
 import pandas as pd
 import numpy as np
 
+from bact_math_utils.tune import tune_change
+
 import bact_analysis.utils.preprocess
 import bact_analysis_bessyii.bba.preprocess_data
 from bact_analysis.transverse.twiss_interpolate import (
@@ -19,7 +21,6 @@ from bact_analysis.transverse.twiss_interpolate import (
 )
 
 from bact_math_utils.linear_fit import linear_fit_1d
-from bba_data import db
 import logging
 from enum import IntEnum
 
@@ -192,18 +193,23 @@ def load_quad_k():
 
 def main(uid, color="b", marker="."):
 
-    run = db[uid]
+    if False:
+        from bba_data import db
 
-    (descriptor,) = run.primary.metadata["descriptors"]
-    configuration = descriptor["configuration"]
-    dt_configuration = configuration["dt"]
-    all_data_ = run.primary.to_dask()
+        run = db[uid]
 
-    for name, item in tqdm.tqdm(all_data_.items(), total=len(all_data_.variables)):
-        item.load()
+        (descriptor,) = run.primary.metadata["descriptors"]
+        configuration = descriptor["configuration"]
+        dt_configuration = configuration["dt"]
+        all_data_ = run.primary.to_dask()
+
+        for name, item in tqdm.tqdm(all_data_.items(), total=len(all_data_.variables)):
+            item.load()
+    else:
+        all_data_ = xr.load_dataset("bba_data1.nc")
 
     muxer_pc_current_change = bact_analysis.utils.preprocess.enumerate_changed_value(
-        all_data_.dt_mux_power_converter_setpoint
+       all_data_.dt_mux_power_converter_setpoint
     )
     muxer_pc_current_change.name = "muxer_pc_current_change"
     muxer_or_pc_current_change = (
@@ -248,7 +254,7 @@ def main(uid, color="b", marker="."):
     )
 
     model_data = load_model()
-    quad_k_data = load_quad_k()
+    # quad_k_data = load_quad_k()
 
     measurement_vars = dict(
         dt_bpm_waveform_x_pos="x_pos",
@@ -322,13 +328,18 @@ def main(uid, color="b", marker="."):
         brho = 5.67044
         delta_k = delta_g / brho
         pinv4 = 1 / (np.pi * 4)
-        dq_x = - beta_x * delta_k * q_l * pol * pinv4
+
+        t_k =  delta_k * pol
+        dq_x = - beta_x * t_k * q_l * pinv4
         # quad convention ... vertical other to horizontal one
-        dq_y = - beta_y * delta_k * q_l * -pol * pinv4
+        dq_y = - beta_y * -t_k * q_l * pinv4
 
         f_rev = 1.25e6
+        # df_x = tune_change(
         df_x = dq_x  * f_rev / 1e3
         df_y = dq_y  * f_rev / 1e3
+        df2_x = - tune_change(dk=t_k, beta=beta_x, length=q_l, f=499.996e6, nb=400) / 1e3
+        df2_y = - tune_change(dk=-t_k, beta=beta_y, length=q_l, f=499.996e6, nb=400) / 1e3
         # --------------------------------------------------------
         # plot the tunes as measured
         t_fig = create_fig(num=fignum + 100, nrows=3, ncols=1, twin_axes=True)
@@ -336,29 +347,33 @@ def main(uid, color="b", marker="."):
         # Same axes every run
         ax_x, ax_y, ax_beta = t_fig.axes
         ta_x, ta_y, ta_beta = t_fig.twin_axes
-        line, x_err, y_err = ax_x.errorbar(
-            names,
-            sel.x.sel(res="val", coeff="slope"),
-            yerr=sel.x.sel(res="std", coeff="slope"),
-            linestyle="",
-            marker=marker,
-            color=color,
-        )
+        if True:
+            line, x_err, y_err = ax_x.errorbar(
+                names,
+                sel.x.sel(res="val", coeff="slope"),
+                yerr=sel.x.sel(res="std", coeff="slope"),
+                linestyle="",
+                marker=marker,
+                color=color,
+            )
         ax_x.plot(names, df_x, "x--", linewidth=0.5, color=color)
+        ax_x.plot(names, df2_x, "^-.", linewidth=0.5, color=color)
         #ta_x.plot(names, s_x, linestyle="-", color=color, linewidth=0.5, marker=".")
         pol_txt = "- " if pol == Polarity.neg else ""
         ta_x.set_ylabel(pol_txt + r"$\beta_x$ [m]")
-
         ax_x.set_ylabel("dQ$_x$/dI [kHz/A]")
-        ax_y.errorbar(
-            names,
-            sel.y.sel(res="val", coeff="slope"),
-            yerr=sel.y.sel(res="std", coeff="slope"),
-            linestyle="",
-            marker=marker,
-            color=line.get_color(),
-        )
+
+        if True:
+            ax_y.errorbar(
+                names,
+                sel.y.sel(res="val", coeff="slope"),
+                yerr=sel.y.sel(res="std", coeff="slope"),
+                linestyle="",
+                marker=marker,
+                color=color,
+            )
         ax_y.plot(names, df_y, "x--", linewidth=0.5, color=color)
+        ax_y.plot(names, df2_y, "^-.", linewidth=0.5, color=color)
         #ta_y.plot(names, s_y, linestyle="-", color=color, linewidth=0.5, marker=".")
         pol_txt = "- " if pol == Polarity.pos else ""
         ta_y.set_ylabel(pol_txt + r"$\beta_y$ [m]")
