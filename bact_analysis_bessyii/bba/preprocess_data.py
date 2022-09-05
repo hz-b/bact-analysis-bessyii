@@ -52,7 +52,9 @@ def configuration(run, *, device_name: str = "dt") -> dict:
 
 
 def load_and_check_data(run, *, device_name: str = "dt") -> (xr.Dataset, dict):
-    """Currently loads all data
+    """Loads run data and renames dimensons containing bpm data
+
+    Loads beam position monitor data and configuration data
 
     Args:
         run: a bluesky run
@@ -64,7 +66,11 @@ def load_and_check_data(run, *, device_name: str = "dt") -> (xr.Dataset, dict):
     Consider loading only the required data arrays of the ru
     """
     all_data_ = run.primary.to_dask()
-    for name, item in tqdm.tqdm(all_data_.items(), total=len(all_data_.variables)):
+    for name, item in tqdm.tqdm(
+        all_data_.items(),
+        total=len(all_data_.variables),
+        desc="Loading individual variables",
+    ):
         item.load()
 
     config = configuration(run, device_name=device_name)
