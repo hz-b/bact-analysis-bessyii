@@ -7,7 +7,9 @@ import xarray as xr
 from .preprocess_data import load_and_check_data
 from bact_analysis.utils.preprocess import reorder_by_groups
 import functools
+import logging
 
+logger = logging.getLogger('bact-analysis-bessyii')
 
 @functools.lru_cache
 def load_and_rearrange_data(uid: str, catalog_name: str = "heavy") -> xr.Dataset:
@@ -15,8 +17,12 @@ def load_and_rearrange_data(uid: str, catalog_name: str = "heavy") -> xr.Dataset
     Todo:
         Require loading from other formats?
     """
-    db = catalog[catalog_name]
-    run = db[uid]
+    try:
+        db = catalog[catalog_name]
+        run = db[uid]
+    except:
+        logger.warning(f'using catalog name {catalog_name} uid {uid}')
+        raise
 
     preprocessed_, dt_configuration = load_and_check_data(run)
 
