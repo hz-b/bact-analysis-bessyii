@@ -51,7 +51,7 @@ def configuration(run, *, device_name: str = "dt") -> dict:
     return dev_con
 
 
-def load_and_check_data(run, *, device_name: str = "dt") -> (xr.Dataset, dict):
+def load_and_check_data(run, *, device_name: str = "dt", load_all: bool=True) -> (xr.Dataset, dict):
     """Loads run data and renames dimensons containing bpm data
 
     Loads beam position monitor data and configuration data
@@ -59,19 +59,20 @@ def load_and_check_data(run, *, device_name: str = "dt") -> (xr.Dataset, dict):
     Args:
         run: a bluesky run
         dt: the name of the device (whose configuration should be retrieved
-
+        load_all: load all dask arrays
     Return: (preprocessed, config)
         config: dictonary containing the configuration
 
     Consider loading only the required data arrays of the ru
     """
     all_data_ = run.primary.to_dask()
-    for name, item in tqdm.tqdm(
-        all_data_.items(),
-        total=len(all_data_.variables),
-        desc="Loading individual variables",
-    ):
-        item.load()
+    if load_all:
+        for name, item in tqdm.tqdm(
+            all_data_.items(),
+            total=len(all_data_.variables),
+            desc="Loading individual variables",
+        ):
+            item.load()
 
     config = configuration(run, device_name=device_name)
 
