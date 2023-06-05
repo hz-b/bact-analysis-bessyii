@@ -7,19 +7,8 @@ import xarray as xr
 
 #: variables with bpm names
 bpm_variables = (
-    "bpm_waveform_x_pos_raw",
-    "bpm_waveform_x_rms_raw",
-    "bpm_waveform_x_pos",
-    "bpm_waveform_x_rms",
-    "bpm_waveform_y_pos_raw",
-    "bpm_waveform_y_rms_raw",
-    "bpm_waveform_y_pos",
-    "bpm_waveform_y_rms",
-    "bpm_waveform_intensity_z",
-    "bpm_waveform_intensity_s",
-    "bpm_waveform_status",
-    "bpm_waveform_gain_raw",
-    "bpm_waveform_ds",
+    "bpm_elem_data",
+    "bpm_ds",
 )
 
 
@@ -77,16 +66,18 @@ def load_and_check_data(run, *, device_name: str = "dt") -> (xr.Dataset, dict):
 
     # Quite a view variables contain bpm waveforme data. Preparation for
     # replacing the names with bpm names
-    bpm_names = all_data_.dt_bpm_waveform_names.isel(time=0).values
+    bpm_names = config["data"]["bpm_names"]
     bpm_dims = replaceable_dims_bpm(
-        all_data_, prefix="dt_", expected_length=len(bpm_names)
+         all_data_, prefix="", expected_length=len(bpm_names)
     )
+    # Find out: repetition of measurement at this stage
     muxer_pc_current_change = preprocess.enumerate_changed_value(
-        all_data_.dt_mux_power_converter_setpoint
+        all_data_.mux_power_converter_setpoint
     )
+    # Find out:
     muxer_pc_current_change.name = "muxer_pc_current_change"
     muxer_or_pc_current_change = preprocess.enumerate_changed_value_pairs(
-        all_data_.dt_mux_power_converter_setpoint, all_data_.dt_mux_selector_selected
+        all_data_.mux_power_converter_setpoint, all_data_.mux_selected_multiplexer_readback
     )
     muxer_or_pc_current_change.name = "muxer_or_pc_current_change"
 

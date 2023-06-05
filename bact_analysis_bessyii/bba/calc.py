@@ -100,8 +100,8 @@ def angles_to_offset_all(angles: xr.DataArray, *, names: Sequence, tf_scale: flo
     # length = calib.length.sel(name=names)
     # hw2phys contains already the polarity
     # polarity = 1
-    polarities = np.array([quad_polarities[name[:2]] for name in names])
-    length = np.array([quad_length[name[:2]] for name in names])
+    polarities = np.array([quad_polarities[name[:2].upper() ]for name in np.array([s.capitalize() for s in names])])
+    length = np.array([quad_length[name[:2]] for name in np.array([s.capitalize() for s in names])])
     angle_scale = angles.orbit.attrs["theta"]
 
     def f(angle):
