@@ -342,5 +342,9 @@ if __name__ == "__main__":
         uid, = sys.argv
     except ValueError:
         print("need one argument! a uid")
-        sys.exit()
+        if True:
+            uid = '9ba454c7-f709-4c42-84b3-410b5ac05d9d'
+            print(f"Using uid for testing {uid}")
+        else:
+            sys.exit()
     main(sys.argv[0])
