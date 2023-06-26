@@ -289,8 +289,11 @@ def closed_orbit_distortion_from_twiss(
 
 
 def closed_orbit_distortion_from_model(
-    acc, quadrupole_name: str, relative_gradient_change: float|None = None,
-        gradient: float|None = None, copy: bool = True
+    acc,
+    quadrupole_name: str,
+    relative_gradient_change: float | None = None,
+    gradient: float | None = None,
+    copy: bool = True,
 ) -> [float, xr.Dataset]:
     """Compute closed orbit from model.
 
@@ -537,15 +540,15 @@ def test_050_predicted_deviation_to_closed_orbit(
 
 # @pytest.mark.skip
 @pytest.mark.parametrize(
-    ["quadrupole_name", "bba_gradient_change"],
+    ["quadrupole_name", "bba_gradient_change", "test_angle_fraction"],
     (
         # q2 strong in y direction .. large beta_y
-        ["q3m2t8r", 0.23e-2],
-        # ["q4m1t8r", 0.23e-2],
+        ["q3m2t8r", 0.23e-2, 0.223],
+        ["q4m1t8r", 0.105e-2, 2 * 355/113.0],
     ),
 )
 def test_060_predicted_deviation_to_closed_orbit_similar_to_measurement(
-    quadrupole_name, bba_gradient_change, do_plots: bool = True
+    quadrupole_name, bba_gradient_change, test_angle_fraction, do_plots: bool = True
 ):
     """Test if fit to measurement yields expected data
 
@@ -579,8 +582,10 @@ def test_060_predicted_deviation_to_closed_orbit_similar_to_measurement(
         twiss_db=twiss_db,
         quadrupole_index=quadrupole.index,
         plane="y",
-        # angle=equivalent_angle.imag,
-
+        # scale the angle by the equivalent angle
+        # equivalent angle will give a fit result close to 1
+        # here it is deliveratly forced to be an other value
+        angle=equivalent_angle.imag,
     )
 
     # prepare data as processing expects it
@@ -640,15 +645,46 @@ def test_060_predicted_deviation_to_closed_orbit_similar_to_measurement(
     # in real world the offsets are only available at the beam position monitors
     offset = offset.sel(pos=bpm_names)
     r = process_magnet_plane(
-         selected_model=selected_model,
-         selected_model_for_magnet=selected_model_for_magnet,
-         excitation=dG_da,
-         offset=offset,
-         bpm_names=bpm_names,
-         theta=equivalent_angle.imag,
-         scale_phase_advance=2 * np.pi,
+        selected_model=selected_model,
+        selected_model_for_magnet=selected_model_for_magnet,
+        excitation=dG_da,
+        offset=offset,
+        bpm_names=bpm_names,
+        # scale the angle by the equivalent angle
+        # equivalent angle will give a fit result close to 1
+        # here it is deliveratly forced to be an other value
+        theta=equivalent_angle.imag * test_angle_fraction,
+        scale_phase_advance=2 * np.pi,
     )
+
+    # Check that the correct angle is stored
+    r.orbit.attrs["theta"] == pytest.approx(
+        equivalent_angle.imag * test_angle_fraction, 1e-12
+    )
+    r.orbit_at_bpm.attrs["theta"] == pytest.approx(
+        equivalent_angle.imag * test_angle_fraction, 1e-12
+    )
+
     scaled_angle = r.result.sel(parameter="scaled_angle")
+
+    angle_slope = scaled_angle * r.orbit.attrs["theta"]
+    # The slope of the angle is equivalent to the kick that
+    # is produced by the dipole created by feed down
+    # but need to divide by the magnet length ...
+    # the integral effect is measued from which one has to conclude
+    # to the equivalent dipole strength
+    dy_from_fit = -angle_slope / quadrupole.get_length()
+    print(dy_from_fit / quad_dy)
+    # 5 percent would be enought for the average BESSY II quad
+    # but not for the long Q4 ones
+    assert dy_from_fit.sel(result="value") == pytest.approx(quad_dy, rel=7e-2)
+
+    # Check that the estimated values are similar to the expected ones
+    fit_equivalent_angle = angle_slope * dG
+    assert (
+        np.absolute(fit_equivalent_angle.sel(result="value"))
+        == pytest.approx(np.absolute(equivalent_angle), rel=7e-2)
+    ).all()
 
     # bpm_offsets = r.result.sel(parameter=bpm_names)
     # # ALl bpm offsets should be now close to zero
@@ -711,7 +747,7 @@ def test_060_predicted_deviation_to_closed_orbit_similar_to_measurement(
                 label="orbit used for estimating angle scale",
                 color=line.get_color(), linewidth=0.5,
                 )
-        #ax.plot(s_bpm, - r.orbit_at_bpm * pscale, "k.", label="for bpm")
+        # ax.plot(s_bpm, - r.orbit_at_bpm * pscale, "k.", label="for bpm")
 
         # fmt: on
 
