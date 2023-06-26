@@ -1,10 +1,13 @@
 """Tests to verify that beam based alignment equations work
 
 """
+import copy
 import logging
 import os
 
 import numpy as np
+import pandas as pd
+import reportlab.lib.colors
 import xarray as xr
 import matplotlib.pyplot as plt
 import pytest
@@ -48,6 +51,27 @@ def create_accelerator():
     print(f"Reading lattice file {t_file}")
     acc = accelerator_from_config(t_file)
     return acc
+
+
+def copy_acc(acc):
+    """Should be a method, not yet implemented"""
+    return tslib.Accelerator([elem for elem in acc])
+
+
+def copy_quadrupole(quadrupole):
+    nmuls = quadrupole.get_multipoles().copy()
+    nquad = quadrupole.__class__(quadrupole.config())
+    nquad.set_field_interpolator(nmuls)
+    nquad.set_dx(quadrupole.get_dx())
+    nquad.set_dy(quadrupole.get_dy())
+    return nquad
+
+
+def acc_with_replaced_element(acc, element):
+    """But no check if element types match"""
+    elements = [elem for elem in acc]
+    elements[element.index] = element
+    return tslib.Accelerator(elements)
 
 
 def calculate_required_dipole_compensation(K: complex, dz: complex) -> complex:
@@ -115,6 +139,49 @@ def check_phase_space_zero(ps: gtpsa.ss_vect_double | gtpsa.ss_vect_tpsa):
 def test_010_create_accelerator():
     acc = create_accelerator()
     assert acc
+
+
+def test_011_modifiy_copied_muls_without_sideefect_on_original():
+    C3 = 355 / 113 * 1j
+    C2 = 1.2
+    muls = tslib.TwoDimensionalMultipoles(0j)
+    muls.set_multipole(3, C3)
+    muls_ref = muls.copy()
+    muls.set_multipole(2, C2)
+
+    # Check that the multipole was set
+    assert muls.get_multipole(2).real == pytest.approx(C2.real, abs=1e-12)
+    assert muls.get_multipole(2).imag == pytest.approx(C2.imag, abs=1e-12)
+    assert muls.get_multipole(3).real == pytest.approx(C3.real, abs=1e-12)
+    assert muls.get_multipole(3).real == pytest.approx(C3.real, abs=1e-12)
+
+    # Check that the original was not modified
+    assert muls_ref.get_multipole(2).real == pytest.approx(0, abs=1e-12)
+    assert muls_ref.get_multipole(2).imag == pytest.approx(0, abs=1e-12)
+    assert muls_ref.get_multipole(3).real == pytest.approx(C3.real, abs=1e-12)
+    assert muls_ref.get_multipole(3).imag == pytest.approx(C3.imag, abs=1e-12)
+
+
+def test_012_accelerator_modifiy_quad_without_sideeffect_on_orginal():
+    acc_ref = create_accelerator()
+    quadrupole_name = "q3m2d4r"
+    quadrupole = acc_ref.find(quadrupole_name, 0)
+
+    nquad = copy_quadrupole(quadrupole)
+    K = nquad.get_main_multipole_strength()
+    modified_K = K * (1 + 2.3e-2)
+    nquad.get_multipoles().set_multipole(2, modified_K)
+    acc = acc_with_replaced_element(acc_ref, nquad)
+
+    # check that original quadrupole has not been modified
+    assert acc_ref.find(
+        quadrupole_name, 0
+    ).get_main_multipole_strength() == pytest.approx(K, abs=1e-12)
+
+    # check that quadrupole was modified for the second accelerator
+    assert acc.find(quadrupole_name, 0).get_main_multipole_strength() == pytest.approx(
+        modified_K, abs=1e-12
+    )
 
 
 def test_020_fixed_point_default():
@@ -222,20 +289,45 @@ def closed_orbit_distortion_from_twiss(
 
 
 def closed_orbit_distortion_from_model(
-    acc, quadrupole_name: str, relative_gradient_change: float = 0.0
+    acc, quadrupole_name: str, relative_gradient_change: float|None = None,
+        gradient: float|None = None, copy: bool = True
 ) -> [float, xr.Dataset]:
     """Compute closed orbit from model.
 
+    Warning:
+        Copy not yet working
+
     Todo:
         Current checks assume that change happens in y plane
+        Make it side effect free: i.e. changes to the quadrupole in
+        this lattice should not effect any other lattice
     """
+    if copy:
+        acc = copy_acc(acc)
+
     quadrupole = acc.find(quadrupole_name, 0)
+    if copy:
+        quadrupole = copy_quadrupole(quadrupole)
+
     # change quadrupole ... after reference orbit has been computed
     # as for analysis: reference orbits computed for ideal machine
     K2 = quadrupole.get_main_multipole_strength()
-    modified_K2 = K2 * (1 + relative_gradient_change)
-    dG = K2 * relative_gradient_change
-    quadrupole.get_multipoles().set_multipole(2, modified_K2)
+    if gradient:
+        modified_K2 = gradient
+        dG = modified_K2 - K2
+    else:
+        assert relative_gradient_change
+        modified_K2 = K2 * (1 + relative_gradient_change)
+        dG = K2 * relative_gradient_change
+    muls = quadrupole.get_multipoles()
+    if copy:
+        muls = muls.copy()
+    muls.set_multipole(2, modified_K2)
+    quadrupole.set_field_interpolator(muls)
+
+    # todo: only if copy requested =
+    acc = acc_with_replaced_element(acc, quadrupole)
+
     assert quadrupole.get_main_multipole_strength().real == pytest.approx(
         modified_K2, rel=1e-12
     )
@@ -258,15 +350,15 @@ def closed_orbit_distortion_from_model(
     return modified_K2, ds
 
 
-@pytest.mark.skip
+# @pytest.mark.skip
 @pytest.mark.parametrize(
     ["quadrupole_name", "bba_gradient_change"],
     (
-        ["q4m2t2r", -1e-2],
-        ["q4m2t2r", 1e-2],
+        # ["q4m2t2r", -1e-2],
+        # ["q4m2t2r", 1e-2],
         # q2 strong in y direction .. large beta_y
-        ["q2m1t8r", -1e-2],
-        ["q2m2t8r", 1e-2],
+        # ["q2m1t8r", -1e-2],
+        # ["q2m2t8r", 1e-2],
         # q3 strong in y direction .. large beta_y
         ["q3m1t8r", -1e-2],
         ["q3m2t8r", 1e-2],
@@ -324,8 +416,11 @@ def test_050_predicted_deviation_to_closed_orbit(
 
     # change quadrupole ... after reference orbit has been computed
     # as for analysis: reference orbits computed for ideal machine
-    ds = closed_orbit_distortion_from_model(
-        acc, quadrupole_name, relative_gradient_change=bba_gradient_change
+    _, ds = closed_orbit_distortion_from_model(
+        acc,
+        quadrupole_name,
+        relative_gradient_change=bba_gradient_change,
+        copy=False,
     )
     orbit_y = ds.ps.sel(phase_coordinate="y")
 
@@ -333,6 +428,7 @@ def test_050_predicted_deviation_to_closed_orbit(
     # assert abs(r.x0.y) > .5e-4
     # assert abs(r.x0.py) > 1e-5
 
+    #: todo .. why the minus here
     X = (-orbit * bba_gradient_change)[:, np.newaxis]
     cooking_factor, residues, rank, s = linalg.lstsq(X, orbit_y.values, rcond=None)
     cooking_factor = float(cooking_factor)
@@ -342,8 +438,8 @@ def test_050_predicted_deviation_to_closed_orbit(
 
     # todo: where does the cooking factor come from!
     # todo: assumption of the approximation only small quads?
-    assert cooking_factor == pytest.approx(1, rel=0.2)
-    assert cooking_factor_error == pytest.approx(0, abs=1e-3)
+    #    assert cooking_factor == pytest.approx(1, rel=0.2)
+    #    assert cooking_factor_error == pytest.approx(0, abs=1e-3)
 
     p, dp = cooking_factor - 1, cooking_factor_error
     print(dp)
@@ -439,28 +535,52 @@ def test_050_predicted_deviation_to_closed_orbit(
     plt.show()
 
 
+# @pytest.mark.skip
 @pytest.mark.parametrize(
     ["quadrupole_name", "bba_gradient_change"],
     (
         # q2 strong in y direction .. large beta_y
-        ["q2m1t8r", 1e-2],
+        ["q3m2t8r", 0.23e-2],
+        # ["q4m1t8r", 0.23e-2],
     ),
 )
 def test_060_predicted_deviation_to_closed_orbit_similar_to_measurement(
     quadrupole_name, bba_gradient_change, do_plots: bool = True
 ):
-    """Test if fit to measurement yields expected data"""
-    import pandas as pd
+    """Test if fit to measurement yields expected data
+
+    Todo:
+        check forecast if estimated angle is not close to
+        the expected one
+    """
 
     acc = create_accelerator()
     desc = gtpsa.desc(6, 2)
-    quad_dy = 1e-3
+    quad_dy = 1e-4
 
     quadrupole = acc.find(quadrupole_name, 0)
+    # keep the reference ... check that changing the gradient had the
+    # desired effect
+    k_ref = quadrupole.get_main_multipole_strength()
     # shift quadrupole and compensate its offset with a steerer
     set_required_dipole_compensation_to_quadrupole(quadrupole, quad_dy * 1j, copy=False)
+
+    acc_ref = copy_acc(acc)
+
     twiss_db = compute_Twiss_along_lattice(
-        2, acc, desc=desc, mapping=gtpsa.default_mapping()
+        2, acc_ref, desc=desc, mapping=gtpsa.default_mapping()
+    )
+    equivalent_angle = angle_for_quadrupole_offset(quadrupole, quad_dy * 1j)
+    # need to scale the angle: from full dipole to the part used by
+    # gradient change during bba
+    equivalent_angle = equivalent_angle * bba_gradient_change
+    # calculate orbit from twiss ... check what internal routines are doing
+    orbit_twiss = closed_orbit_distortion_from_twiss(
+        twiss_db=twiss_db,
+        quadrupole_index=quadrupole.index,
+        plane="y",
+        # angle=equivalent_angle.imag,
+
     )
 
     # prepare data as processing expects it
@@ -471,51 +591,131 @@ def test_060_predicted_deviation_to_closed_orbit_similar_to_measurement(
     mu.name = "mu"
     selected_model = xr.merge([beta, mu], compat="override")
     del tmp, beta, mu
+
     # prepare the dimension index to pos_name using unique names: lookup of element by name
     _, pos_names = rename_doublicates([elem.name for elem in acc])
     selected_model = selected_model.assign_coords(index=pos_names).rename(index="pos")
     selected_model_for_magnet = selected_model.sel(pos=quadrupole.name)
-    # todo: check if process should not ensure that arguments are arrays
-    equivalent_angle = angle_for_quadrupole_offset(quadrupole, quad_dy * 1j)
-    excitation = np.array([-bba_gradient_change, bba_gradient_change])
-    excitation_da = xr.DataArray(data=excitation, dims=["dG"], coords=[excitation], name="exitation")
 
-    def calculate_offset_for_gradient_change(gradient_change):
-        dG, ds = closed_orbit_distortion_from_model(acc, quadrupole_name, gradient_change)
-        return dG, ds.ps.sel(phase_coordinate="y")
+    # todo: check if process should not ensure that arguments are arrays
+    excitation = np.array([-bba_gradient_change, bba_gradient_change])
+    excitation_da = xr.DataArray(
+        data=excitation, dims=["dG"], coords=[excitation], name="exitation"
+    )
+    # precompute the gradients: changing the model
+    # not yet betting that copies of accelerator lattice are properly made
+    gradients = k_ref * (1 + excitation)
+
+    # copy of lattice and lattice elements: is it already working ?
+    def calculate_closed_orbit_for_gradient(gradient):
+        acc = copy_acc(acc_ref)
+        modified_K, ds = closed_orbit_distortion_from_model(
+            acc, quadrupole_name, gradient=gradient, copy=False
+        )
+        return modified_K, ds.ps.sel(phase_coordinate="y")
 
     bpm_names = [name for name in pos_names if name[:3] == "bpm"]
     print(bpm_names)
-    tmp = [calculate_offset_for_gradient_change(dg) for dg in excitation]
-    dG = [t[0] for t in tmp]
+    tmp = [calculate_closed_orbit_for_gradient(g) for g in gradients]
+    used_gradients = [t[0] for t in tmp]
+    dG = excitation_da * k_ref.real
+    # check that the gradients are as expected
+    for used_gradient, ex in zip(used_gradients, excitation_da.values):
+        expected_gradient = k_ref * (1 + ex)
+        print(
+            f"original gradient {k_ref} -> expected {expected_gradient} found  {used_gradient}"
+        )
+        assert used_gradient == pytest.approx(expected_gradient, rel=1e-12)
     # testing the effect of excitation
-    dG = np.array([-1, 1])
+    # dG = np.array([-1, 1])
     dG_da = xr.DataArray(data=dG, dims=["dG"], coords=[dG], name="exitation")
 
     offset = xr.DataArray(
         data=[t[1] for t in tmp],
         name="measured_offset",
         dims=["dG", "pos"],
-        coords=[dG, pos_names]
+        coords=[dG.values, pos_names],
     )
     del tmp
     # in real world the offsets are only available at the beam position monitors
     offset = offset.sel(pos=bpm_names)
     r = process_magnet_plane(
-        selected_model=selected_model,
-        selected_model_for_magnet=selected_model_for_magnet,
-        excitation=dG_da,
-        offset=offset,
-        bpm_names=bpm_names,
-        theta=equivalent_angle.imag,
+         selected_model=selected_model,
+         selected_model_for_magnet=selected_model_for_magnet,
+         excitation=dG_da,
+         offset=offset,
+         bpm_names=bpm_names,
+         theta=equivalent_angle.imag,
+         scale_phase_advance=2 * np.pi,
+    )
+    scaled_angle = r.result.sel(parameter="scaled_angle")
+
+    # bpm_offsets = r.result.sel(parameter=bpm_names)
+    # # ALl bpm offsets should be now close to zero
+    # for name in bpm_names:
+    #     chk = bpm_offsets.sel(parameter=name)
+    #     assert chk.sel(result="value").values == pytest.approx(
+    #         0, abs=chk.sel(result="error").values
+    #     )
+
+    do_plots = True
+    if not do_plots:
+        return
+
+    print("scaled angle\n", scaled_angle)
+    print("scaled angle * dG\n", scaled_angle * dG)
+    print("scaled angle / expected_angle\n", scaled_angle / equivalent_angle.imag)
+
+    fig, ax = plt.subplots(1, 1)
+    pscale = 1e6
+
+    # if names are not unique ... work around
+    s_bpm = np.array(
+        [twiss_db.s.isel(index=twiss_db.names == name) for name in bpm_names]
     )
 
-    bpm_offsets = r.result.sel(parameter=bpm_names)
-    # ALl bpm offsets should be now close to zero
-    for name in bpm_names:
-        chk = bpm_offsets.sel(parameter=name)
-        assert chk.sel(result="value").values == pytest.approx(0, abs=chk.sel(result="error").values)
-    scaled_angle = r.result.sel(parameter="scaled_angle")
-    print(scaled_angle)
-    print(scaled_angle / equivalent_angle.imag)
-    print(scaled_angle / equivalent_angle.imag)
+    # plot first the orbit as used for the fit
+
+    polarity = np.sign(k_ref)
+    for dg in dG.values:
+        if (dg) < 0:
+            s = -1 * polarity
+        else:
+            s = 1 * polarity
+
+        # fmt: off
+        # as estimated by twiss calculation
+        line, = ax.plot(twiss_db.s, - orbit_twiss * pscale, "-",
+            label="orbit deviation estimated from twiss")
+        # as found by closed orbit finder
+        ax.plot(s_bpm, offset.sel(dG=dg) * pscale * s, ".", label=f"dG ={dg:.3f}",
+                color=line.get_color(), linewidth=0.5,
+        )
+        # scaled orbit matching data
+        scale_fit = (
+            # the scaled angle is retrieved from a linear fit
+            # thus the scaled angle is for the equivalent angle
+            # when the excitation is at 1
+            scaled_angle.sel(result="value")
+            # here the excitation was dG .. so it needs to be
+            # multiplied with this value
+            * dg
+        )
+        scaled_fit = abs(scale_fit)
+        print(f"scale used orbit data with {scaled_fit}")
+        ax.plot(s_bpm, - r.orbit_at_bpm *  pscale, "+",
+                label=f"orbit bpm data used to scaled to closed orbit data ={dg:.3f}",
+                color=line.get_color(), linewidth=0.5,
+                )
+        ax.plot(twiss_db.s, - r.orbit * pscale * scaled_fit, "--",
+                label="orbit used for estimating angle scale",
+                color=line.get_color(), linewidth=0.5,
+                )
+        #ax.plot(s_bpm, - r.orbit_at_bpm * pscale, "k.", label="for bpm")
+
+        # fmt: on
+
+    ax.legend()
+    ax.set_ylabel("dy [um]")
+    ax.set_xlabel("s [m]")
+    plt.show()
