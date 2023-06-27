@@ -293,7 +293,7 @@ def closed_orbit_distortion_from_twiss(
         beta_i=twiss_db.twiss.sel(
             plane=plane, par="beta", index=quadrupole_index
         ).values,
-        mu_i=nu.sel(plane="y", index=quadrupole_index).values * 2 * np.pi,
+        mu_i=nu.sel(plane=plane, index=quadrupole_index).values * 2 * np.pi,
         theta_i=angle,
     )
     return orbit
@@ -364,15 +364,15 @@ def closed_orbit_distortion_from_model(
     return modified_K2, ds
 
 
-# @pytest.mark.skip
+#+@pytest.mark.skip
 @pytest.mark.parametrize(
     ["quadrupole_name", "bba_gradient_change"],
     (
-        # ["q4m2t2r", -1e-2],
-        # ["q4m2t2r", 1e-2],
+        ["q4m2t2r", -1e-2],
+        ["q4m2t2r", 1e-2],
         # q2 strong in y direction .. large beta_y
-        # ["q2m1t8r", -1e-2],
-        # ["q2m2t8r", 1e-2],
+        ["q2m1t8r", -1e-2],
+        ["q2m2t8r", 1e-2],
         # q3 strong in y direction .. large beta_y
         ["q3m1t8r", -1e-2],
         ["q3m2t8r", 1e-2],
@@ -389,9 +389,6 @@ def test_050_predicted_deviation_to_closed_orbit(
     2. change K value by known fraction
     3. calculate predicted orbit change
     4. compare that deviation is as predicted
-
-    Todo:
-        make comparisons how well the model fits if only the Bpm's are used
     """
     # parameters --------------------
     # parameters
@@ -551,15 +548,18 @@ def test_050_predicted_deviation_to_closed_orbit(
 
 # @pytest.mark.skip
 @pytest.mark.parametrize(
-    ["quadrupole_name", "bba_gradient_change", "test_angle_fraction"],
+    ["quadrupole_name", "plane", "bba_gradient_change", "test_angle_fraction"],
     (
         # q2 strong in y direction .. large beta_y
-        ["q3m2t8r", 0.23e-2, 0.223],
-        ["q4m1t8r", 0.105e-2, 2 * 355 / 113.0],
+        ["q3m2t8r", "y", 0.23e-2, 0.223],
+        ["q3m2t8r", "x", 0.1e-2, 1],
+        ["q4m1t8r", "x", 0.105e-2, 2 * 355 / 113.0],
+        ["q4m1t8r", "y", 0.105e-2, 2 * 355 / 113.0],
     ),
 )
 def test_060_predicted_deviation_to_closed_orbit_similar_to_measurement(
     quadrupole_name,
+    plane,
     bba_gradient_change,
     test_angle_fraction,
     show_plots: bool = show_plots_default,
@@ -569,24 +569,52 @@ def test_060_predicted_deviation_to_closed_orbit_similar_to_measurement(
     Todo:
        make test useable for x and y
     """
+    assert plane in ["x", "y"]
+
+    # in which direction the quadrupole is moved ?
+    if plane == "x":
+        offset_phase = 1.0
+        # Convention: x plane focusing quadrupole
+        # for positive gradient
+        quadrupole_plane_default_sign = 1
+    elif plane == "y":
+        offset_phase = 1.0j
+        # Convention_ y plane defocusing quadrupole
+        # for positive gradient
+        quadrupole_plane_default_sign = -1
+    else:
+        raise AssertionError(f"Unexpected plane name {plane}")
 
     acc = create_accelerator()
     desc = gtpsa.desc(6, 2)
-    quad_dy = 1e-4
+    quad_offset = 1e-4
 
     quadrupole = acc.find(quadrupole_name, 0)
     # keep the reference ... check that changing the gradient had the
     # desired effect
     k_ref = quadrupole.get_main_multipole_strength()
     # shift quadrupole and compensate its offset with a steerer
-    set_required_dipole_compensation_to_quadrupole(quadrupole, quad_dy * 1j, copy=False)
+    set_required_dipole_compensation_to_quadrupole(
+        quadrupole, quad_offset * offset_phase, copy=False
+    )
 
     acc_ref = copy_acc(acc)
 
     twiss_db = compute_Twiss_along_lattice(
         2, acc_ref, desc=desc, mapping=gtpsa.default_mapping()
     )
-    equivalent_angle = angle_for_quadrupole_offset(quadrupole, quad_dy * 1j)
+    equivalent_angle = angle_for_quadrupole_offset(
+        quadrupole, quad_offset * offset_phase
+    )
+    if plane == "x":
+        assert equivalent_angle.imag == pytest.approx(0, abs=1e-12)
+        equivalent_angle = equivalent_angle.real
+    elif plane == "y":
+        assert equivalent_angle.real == pytest.approx(0, abs=1e-12)
+        equivalent_angle = equivalent_angle.imag
+    else:
+        raise AssertionError(f"Unexpected plane name {plane}")
+
     # need to scale the angle: from the dipole component created by feed down
     # to the part used by gradient change during bba
     equivalent_angle = equivalent_angle * bba_gradient_change
@@ -594,15 +622,15 @@ def test_060_predicted_deviation_to_closed_orbit_similar_to_measurement(
     orbit_twiss = closed_orbit_distortion_from_twiss(
         twiss_db=twiss_db,
         quadrupole_index=quadrupole.index,
-        plane="y",
+        plane=plane,
         # scale the angle by the equivalent angle
         # equivalent angle will give a fit result close to 1
         # the data here is used for visual inspection
-        angle=equivalent_angle.imag,
+        angle=equivalent_angle,
     )
 
     # prepare data as processing expects it
-    tmp = twiss_db.twiss.sel(plane="y")
+    tmp = twiss_db.twiss.sel(plane=plane)
     beta = tmp.sel(par="beta")
     beta.name = "beta"
     mu = xr.apply_ufunc(np.add.accumulate, tmp.sel(par="dnu"))
@@ -630,10 +658,10 @@ def test_060_predicted_deviation_to_closed_orbit_similar_to_measurement(
         modified_K, ds = closed_orbit_distortion_from_model(
             acc, quadrupole_name, gradient=gradient, copy=False
         )
-        return modified_K, ds.ps.sel(phase_coordinate="y")
+        return modified_K, ds.ps.sel(phase_coordinate=plane)
 
     bpm_names = [name for name in pos_names if name[:3] == "bpm"]
-    print(bpm_names)
+    logger.debug(bpm_names)
     tmp = [calculate_closed_orbit_for_gradient(g) for g in gradients]
     used_gradients = [t[0] for t in tmp]
     dG = excitation_da * k_ref.real
@@ -666,16 +694,16 @@ def test_060_predicted_deviation_to_closed_orbit_similar_to_measurement(
         # scale the angle by the equivalent angle
         # equivalent angle will give a fit result close to 1
         # here it is deliveratly forced to be an other value
-        theta=equivalent_angle.imag * test_angle_fraction,
+        theta=equivalent_angle * test_angle_fraction,
         scale_phase_advance=2 * np.pi,
     )
 
-    # Check that the correct angle is stored
+    # Check that the correct angle is stored in the result object
     r.orbit.attrs["theta"] == pytest.approx(
-        equivalent_angle.imag * test_angle_fraction, 1e-12
+        equivalent_angle * test_angle_fraction, 1e-12
     )
     r.orbit_at_bpm.attrs["theta"] == pytest.approx(
-        equivalent_angle.imag * test_angle_fraction, 1e-12
+        equivalent_angle * test_angle_fraction, 1e-12
     )
 
     scaled_angle = r.result.sel(parameter="scaled_angle")
@@ -686,17 +714,30 @@ def test_060_predicted_deviation_to_closed_orbit_similar_to_measurement(
     # but need to divide by the magnet length ...
     # the integral effect is measued from which one has to conclude
     # to the equivalent dipole strength
-    dy_from_fit = -angle_slope / quadrupole.get_length()
-    print(dy_from_fit / quad_dy)
-    # 5 percent would be enought for the average BESSY II quad
+    magnet_offset_from_fit = (
+        quadrupole_plane_default_sign * angle_slope / quadrupole.get_length()
+    )
+    print(
+        f"{quadrupole_name}: angle slope {angle_slope.sel(result='value').values}, "
+        f" set offset {quad_offset}",
+        f" magnet offset from fit {magnet_offset_from_fit.sel(result='value').values}",
+    )
+    # for the x plane larger relative errors need to be accepted
+    # seems to be 20 %!
+    # for the y plane
+    # 5 percent would be enough for the average BESSY II quad
     # but not for the long Q4 ones
-    assert dy_from_fit.sel(result="value") == pytest.approx(quad_dy, rel=7e-2)
+    offset_acceptable_relative_error = dict(x=2e-1, y=7e-2)[plane]
+    assert magnet_offset_from_fit.sel(result="value") == pytest.approx(
+        quad_offset, rel=offset_acceptable_relative_error
+    )
 
     # Check that the estimated values are similar to the expected ones
+    #  can reuse the relative error acceptable for offset forecast
     fit_equivalent_angle = angle_slope * dG
     assert (
         np.absolute(fit_equivalent_angle.sel(result="value"))
-        == pytest.approx(np.absolute(equivalent_angle), rel=7e-2)
+        == pytest.approx(np.absolute(equivalent_angle), rel=offset_acceptable_relative_error)
     ).all()
 
     # bpm_offsets = r.result.sel(parameter=bpm_names)
@@ -707,7 +748,6 @@ def test_060_predicted_deviation_to_closed_orbit_similar_to_measurement(
     #         0, abs=chk.sel(result="error").values
     #     )
 
-    show_plots = True
     if not show_plots:
         return
 
@@ -718,7 +758,7 @@ def test_060_predicted_deviation_to_closed_orbit_similar_to_measurement(
     fig, ax = plt.subplots(1, 1)
     pscale = 1e6
     ax.set_title(
-        f"Quadrupole {quadrupole.name} offset dy {quad_dy * 1000:.3f} mm"
+        f"Quadrupole {quadrupole.name} offset dy {quad_offset * 1000:.3f} mm"
         " , curves for negative excitation multiplied with 1"
     )
     ax.set_ylabel("dy [um]")
@@ -767,7 +807,9 @@ def test_060_predicted_deviation_to_closed_orbit_similar_to_measurement(
         # multiplied with s: so positive and negative will
         # be on the same side
         # todo: take the polarity / plane into account
-        ax.plot(s_bpm, - offset.sel(dG=dg) * s * pscale, ".", label=f"dG ={dg:.3f}",
+        # todo: find out why the minus is needed
+        ax.plot(s_bpm,  offset.sel(dG=dg) * quadrupole_plane_default_sign * s * pscale,
+                ".", label=f"dG ={dg:.3f}",
                 color=line.get_color(), linewidth=0.5,
         )
         # the scale that has to be applied to the reference data
@@ -780,17 +822,18 @@ def test_060_predicted_deviation_to_closed_orbit_similar_to_measurement(
             # multiplied with this value
             * dg
         )
-        scaled_fit = abs(scale_fit)
-        print(f"scale used orbit data with {scaled_fit}")
-        ax.plot(s_bpm,  r.orbit_at_bpm * scaled_fit * pscale, "+",
+        scale_fit = abs(scale_fit)
+        print(f"scale used orbit data with {scale_fit}")
+        ax.plot(s_bpm,  r.orbit_at_bpm * scale_fit * pscale, "+",
                 label=f"orbit bpm data used to scaled to closed orbit data ={dg:.3f}",
                 color=line.get_color(), linewidth=0.5,
                 )
-        ax.plot(twiss_db.s, r.orbit * scaled_fit * pscale , "--",
+        ax.plot(twiss_db.s, r.orbit * scale_fit * pscale , "--",
                 label="orbit used for estimating angle scale",
                 color=line.get_color(), linewidth=0.5,
                 )
         # fmt: on
+
 
     ax.legend()
     plt.show()
