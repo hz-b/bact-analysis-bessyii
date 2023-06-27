@@ -1,13 +1,19 @@
 """Tests to verify that beam based alignment equations work
 
+Todo:
+    remove quadrupole and accelerator copies
+    not working (properly) yet
 """
+#: show plots when evaluating tests
+#: set to False if not needed
+show_plots_default = True
+
 import copy
 import logging
 import os
 
 import numpy as np
-import pandas as pd
-import reportlab.lib.colors
+from numpy import linalg
 import xarray as xr
 import matplotlib.pyplot as plt
 import pytest
@@ -16,7 +22,6 @@ import thor_scsi.lib as tslib
 import gtpsa
 from bact_analysis.transverse.process import process_magnet_plane
 from bact_analysis.utils.preprocess import rename_doublicates
-from numpy import linalg
 
 from thor_scsi.factory import accelerator_from_config
 from thor_scsi.utils.accelerator import (
@@ -40,6 +45,12 @@ t_file = (
 )
 
 logger = logging.getLogger("bact-bba-test")
+
+if show_plots_default:
+    #: todo: make sure that this message is shown to the user
+    logger.warning(
+        "Some tests open a matplotlib window. Please close it to let the next test run!"
+    )
 
 
 def create_accelerator():
@@ -368,7 +379,7 @@ def closed_orbit_distortion_from_model(
     ),
 )
 def test_050_predicted_deviation_to_closed_orbit(
-    quadrupole_name, bba_gradient_change, do_plots: bool = True
+    quadrupole_name, bba_gradient_change, show_plots: bool = show_plots_default
 ):
     """A nearly complete bba test
 
@@ -494,7 +505,7 @@ def test_050_predicted_deviation_to_closed_orbit(
     # needs roughly 10 times more
     assert mean_absolute_error / n_elements < 10 * 10e-6
 
-    if not do_plots:
+    if not show_plots:
         # No plots requested
         return
 
@@ -544,17 +555,19 @@ def test_050_predicted_deviation_to_closed_orbit(
     (
         # q2 strong in y direction .. large beta_y
         ["q3m2t8r", 0.23e-2, 0.223],
-        ["q4m1t8r", 0.105e-2, 2 * 355/113.0],
+        ["q4m1t8r", 0.105e-2, 2 * 355 / 113.0],
     ),
 )
 def test_060_predicted_deviation_to_closed_orbit_similar_to_measurement(
-    quadrupole_name, bba_gradient_change, test_angle_fraction, do_plots: bool = True
+    quadrupole_name,
+    bba_gradient_change,
+    test_angle_fraction,
+    show_plots: bool = show_plots_default,
 ):
     """Test if fit to measurement yields expected data
 
     Todo:
-        check forecast if estimated angle is not close to
-        the expected one
+       make test useable for x and y
     """
 
     acc = create_accelerator()
@@ -574,8 +587,8 @@ def test_060_predicted_deviation_to_closed_orbit_similar_to_measurement(
         2, acc_ref, desc=desc, mapping=gtpsa.default_mapping()
     )
     equivalent_angle = angle_for_quadrupole_offset(quadrupole, quad_dy * 1j)
-    # need to scale the angle: from full dipole to the part used by
-    # gradient change during bba
+    # need to scale the angle: from the dipole component created by feed down
+    # to the part used by gradient change during bba
     equivalent_angle = equivalent_angle * bba_gradient_change
     # calculate orbit from twiss ... check what internal routines are doing
     orbit_twiss = closed_orbit_distortion_from_twiss(
@@ -584,7 +597,7 @@ def test_060_predicted_deviation_to_closed_orbit_similar_to_measurement(
         plane="y",
         # scale the angle by the equivalent angle
         # equivalent angle will give a fit result close to 1
-        # here it is deliveratly forced to be an other value
+        # the data here is used for visual inspection
         angle=equivalent_angle.imag,
     )
 
@@ -694,8 +707,8 @@ def test_060_predicted_deviation_to_closed_orbit_similar_to_measurement(
     #         0, abs=chk.sel(result="error").values
     #     )
 
-    do_plots = True
-    if not do_plots:
+    show_plots = True
+    if not show_plots:
         return
 
     print("scaled angle\n", scaled_angle)
@@ -704,30 +717,60 @@ def test_060_predicted_deviation_to_closed_orbit_similar_to_measurement(
 
     fig, ax = plt.subplots(1, 1)
     pscale = 1e6
+    ax.set_title(
+        f"Quadrupole {quadrupole.name} offset dy {quad_dy * 1000:.3f} mm"
+        " , curves for negative excitation multiplied with 1"
+    )
+    ax.set_ylabel("dy [um]")
+    ax.set_xlabel("s [m]")
 
-    # if names are not unique ... work around
+    # names are not unique in current BESSY II model, need to do a ... work around
     s_bpm = np.array(
+        # todo: check that each bpm name is unique.
         [twiss_db.s.isel(index=twiss_db.names == name) for name in bpm_names]
     )
 
-    # plot first the orbit as used for the fit
-
-    polarity = np.sign(k_ref)
+    # plot the data used in the analysis and compare them to
+    # the expected model
+    #
+    # 1. the orbit distortion as derived from the Twiss parameters
+    #    of the model
+    # 2. the orbits computed for the the different quadrupole
+    #    gradients using the closed orbit finder
+    # 3. the orbits used internally by the anaylsis (should match
+    #    orbit 1)
+    #
+    # *NB*: for negative excitation the plots are multiplied with
+    #       -1: then both are on the same side. This allows checking
+    #       visually if the positive and negative excitation match
+    #       each other
+    #
+    # These plots are ment to aid finding some inconsistencies e.g
+    # with the coordinate used for the phase advance ( to use 2 pi
+    # or not to use 2 pi)
+    #
+    # One of the first checks: count the peaks number and check if
+    # these match (roughly) the integer tune
     for dg in dG.values:
+        # focusing or defocusing quadrupole
+        polarity = np.sign(k_ref)
         if (dg) < 0:
             s = -1 * polarity
         else:
             s = 1 * polarity
 
         # fmt: off
-        # as estimated by twiss calculation
-        line, = ax.plot(twiss_db.s, - orbit_twiss * pscale, "-",
+        # orbit deviation as estimated by twiss calculation
+        line, = ax.plot(twiss_db.s, orbit_twiss * pscale, "-",
             label="orbit deviation estimated from twiss")
-        # as found by closed orbit finder
-        ax.plot(s_bpm, offset.sel(dG=dg) * pscale * s, ".", label=f"dG ={dg:.3f}",
+        # orbit deviation as found by closed orbit finder
+        # multiplied with s: so positive and negative will
+        # be on the same side
+        # todo: take the polarity / plane into account
+        ax.plot(s_bpm, - offset.sel(dG=dg) * s * pscale, ".", label=f"dG ={dg:.3f}",
                 color=line.get_color(), linewidth=0.5,
         )
-        # scaled orbit matching data
+        # the scale that has to be applied to the reference data
         scale_fit = (
             # the scaled angle is retrieved from a linear fit
             # thus the scaled angle is for the equivalent angle
@@ -739,19 +782,15 @@ def test_060_predicted_deviation_to_closed_orbit_similar_to_measurement(
         )
         scaled_fit = abs(scale_fit)
         print(f"scale used orbit data with {scaled_fit}")
-        ax.plot(s_bpm, - r.orbit_at_bpm *  pscale, "+",
+        ax.plot(s_bpm,  r.orbit_at_bpm * scaled_fit * pscale, "+",
                 label=f"orbit bpm data used to scaled to closed orbit data ={dg:.3f}",
                 color=line.get_color(), linewidth=0.5,
                 )
-        ax.plot(twiss_db.s, - r.orbit * pscale * scaled_fit, "--",
+        ax.plot(twiss_db.s, r.orbit * scaled_fit * pscale , "--",
                 label="orbit used for estimating angle scale",
                 color=line.get_color(), linewidth=0.5,
                 )
-        # ax.plot(s_bpm, - r.orbit_at_bpm * pscale, "k.", label="for bpm")
-
         # fmt: on
 
     ax.legend()
-    ax.set_ylabel("dy [um]")
-    ax.set_xlabel("s [m]")
     plt.show()
