@@ -12,7 +12,7 @@ import logging
 logger = logging.getLogger('bact-analysis-bessyii')
 
 @functools.lru_cache
-def load_and_rearrange_data(uid: str, catalog_name: str = "heavy") -> xr.Dataset:
+def load_and_rearrange_data(uid: str, catalog_name: str = "heavy_local") -> xr.Dataset:
     """load data using uid and make it selectable per magnet
     Todo:
         Require loading from other formats?

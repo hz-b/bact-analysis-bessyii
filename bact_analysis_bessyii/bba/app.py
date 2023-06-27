@@ -121,7 +121,9 @@ def process_rearranged_data(rearranged, bpm_names, bpm_names_as_in_model):
         ],
         compat='override'
     )
-    redm4proc = redm4proc.sel(bpm=bpm_names).rename_dims(bpm="pos")
+    # data is used further downstream for fitting
+    # ensure data is processible by scipy.optimize.lstsq
+    redm4proc = redm4proc.sel(bpm=bpm_names).rename_dims(bpm="pos").astype(float)
 
     return redm4proc
 
@@ -238,10 +240,10 @@ def load_model(
     #   explain exactly what happens in the next 2 lines
     quad_twiss_ = interpolate_twiss(selected_model_, names=required_element_names)
     quad_twiss = (
-        # for each selected quadrupole ... go back to
-        quad_twiss_.rename(dict(elem="pos"))
-        .assign_coords(pos=quad_twiss_.coords["elem"].values)
-        .reset_coords(drop=True)
+        # for each selected quadrupole ... go back to positiom to select for the quadrupole in question
+        quad_twiss_.rename(dict(name="pos"))
+        # .assign_coords(pos=quad_twiss_.coords["elem"].values)
+        # .reset_coords(drop=True)
     )
     del quad_twiss_
 
