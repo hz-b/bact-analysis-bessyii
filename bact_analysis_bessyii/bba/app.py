@@ -86,8 +86,10 @@ def bpm_to_dataset(read_data: Sequence[Hashable]) -> xr.DataArray:
     return da
 
 
-def rearrange_bpm_data(rearranged):
-    data = rearranged.bpm_elem_data
+def rearrange_bpm_data(bpm_elem_data) -> xr.DataArray:
+    """extract values from the dictonaries and put time into consistent arrays
+    """
+    data = bpm_elem_data
     r = [[bpm_to_dataset(data.isel(name=name_idx, step=step_idx).values)
           for step_idx in range(len(data.coords["step"]))]
          for name_idx in range(len(data.coords["name"]))]
@@ -110,7 +112,7 @@ def rearrange_bpm_data(rearranged):
 
 
 def process_rearranged_data(rearranged, bpm_names, bpm_names_as_in_model):
-    da = rearrange_bpm_data(rearranged)
+    da = rearrange_bpm_data(rearranged.bpm_elem_data)
     redm4proc = xr.merge(
         [
             da.sel(plane="x", quality="pos").rename("x_pos"),
@@ -210,7 +212,7 @@ def magnet_data_to_common_names(
 
 def load_model(
         required_element_names: Sequence[str],
-        filename: str = "bessyii_twiss_thor_scsi.nc",
+        filename: str = "bessyii_twiss_thor_scsi_from_twin.nc",
         datadir: str = None,
 ):
     """
@@ -241,7 +243,7 @@ def load_model(
     quad_twiss_ = interpolate_twiss(selected_model_, names=required_element_names)
     quad_twiss = (
         # for each selected quadrupole ... go back to positiom to select for the quadrupole in question
-        quad_twiss_.rename(dict(name="pos"))
+        quad_twiss_.rename(dict(elem="pos"))
         # .assign_coords(pos=quad_twiss_.coords["elem"].values)
         # .reset_coords(drop=True)
     )
@@ -326,13 +328,13 @@ def main(uid):
     # preprocessed_measurement_data = reduced.rename(pos="bpm_pos")
 
 
-    estimated_angles = estimated_angles.merge(preprocessed_measurement_data)
-    # estimated_angles = xr.merge([estimated_angles, preprocessed_measurement_data])
+    # estimated_angles = estimated_angles.merge(preprocessed_measurement_data)
 
     offsets = angles_to_offset_all(
         estimated_angles, names=element_names, tf_scale=75.0 / 28.0
     )
 
+    preprocessed_measurement_data.to_netcdf(f"preprocessed_measurement_data_{uid}.nc")
     estimated_angles.to_netcdf(f"estimated_angles_{uid}.nc")
     offsets.to_netcdf(f"offsets_{uid}.nc")
 
