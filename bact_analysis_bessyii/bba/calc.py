@@ -108,7 +108,10 @@ def angles_to_offset_all(angles: xr.DataArray, *, names: Sequence, tf_scale: flo
         # def angle_to_offset(tf: float, length: float, polarity: int, alpha: float) -> float:
         t_length = length
         # t_length = 1
-        return a2og(delta_k, t_length, polarities, angle * angle_scale, tf_scale=tf_scale)
+        # transfer function of the central zone ... 0.1 for nearly all magnets
+        # need to look it up from database
+        tf = 0.01
+        return a2og(tf=tf, length=t_length, polarity=polarities, alpha=angle * angle_scale, tf_scale=tf_scale)
 
     sel = angles.fit_params.sel(name=names)
     x = f(sel.sel(parameter="scaled_angle", result="value", plane="x"))
