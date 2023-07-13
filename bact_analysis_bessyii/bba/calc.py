@@ -84,6 +84,10 @@ quad_polarities = dict(
 
 
 # from Peter's hand note
+# this value is an average transfer function for the
+# auxilliary coil winding for the muxer
+# todo: leave it only here for cross check at the current development stage
+#       needs to go to report
 delta_g = 0.796 / 5.0
 brho = 5.67044
 delta_k = delta_g / brho
@@ -121,7 +125,6 @@ def angles_to_offset_all(angles: xr.DataArray, *, names: Sequence, tf_scale: flo
 
     x_err = np.absolute(x_err)
     y_err = np.absolute(y_err)
-    
     res = xr.DataArray(
         data=[[x, x_err], [y, y_err]],
         dims=["plane", "result", "name"],
