@@ -84,6 +84,10 @@ quad_polarities = dict(
 
 
 # from Peter's hand note
+# this value is an average transfer function for the
+# auxilliary coil winding for the muxer
+# todo: leave it only here for cross check at the current development stage
+#       needs to go to report
 delta_g = 0.796 / 5.0
 brho = 5.67044
 delta_k = delta_g / brho
@@ -100,15 +104,18 @@ def angles_to_offset_all(angles: xr.DataArray, *, names: Sequence, tf_scale: flo
     # length = calib.length.sel(name=names)
     # hw2phys contains already the polarity
     # polarity = 1
-    polarities = np.array([quad_polarities[name[:2]] for name in names])
-    length = np.array([quad_length[name[:2]] for name in names])
+    polarities = np.array([quad_polarities[name[:2].upper() ]for name in np.array([s.capitalize() for s in names])])
+    length = np.array([quad_length[name[:2]] for name in np.array([s.capitalize() for s in names])])
     angle_scale = angles.orbit.attrs["theta"]
 
     def f(angle):
         # def angle_to_offset(tf: float, length: float, polarity: int, alpha: float) -> float:
         t_length = length
         # t_length = 1
-        return a2og(delta_k, t_length, polarities, angle * angle_scale, tf_scale=tf_scale)
+        # transfer function of the central zone ... 0.1 for nearly all magnets
+        # need to look it up from database
+        tf = 0.01
+        return a2og(tf=tf, length=t_length, polarity=polarities, alpha=angle * angle_scale, tf_scale=tf_scale)
 
     sel = angles.fit_params.sel(name=names)
     x = f(sel.sel(parameter="scaled_angle", result="value", plane="x"))
@@ -118,7 +125,6 @@ def angles_to_offset_all(angles: xr.DataArray, *, names: Sequence, tf_scale: flo
 
     x_err = np.absolute(x_err)
     y_err = np.absolute(y_err)
-    
     res = xr.DataArray(
         data=[[x, x_err], [y, y_err]],
         dims=["plane", "result", "name"],
