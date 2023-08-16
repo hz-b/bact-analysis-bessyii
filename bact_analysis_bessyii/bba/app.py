@@ -6,6 +6,8 @@ import tqdm
 import xarray as xr
 from typing import Sequence, Hashable
 
+from pymongo import MongoClient
+
 from bact_analysis.transverse.process import process_all_gen, combine_all
 from bact_analysis.transverse.twiss_interpolate import interpolate_twiss
 from bact_analysis.utils.preprocess import rename_doublicates, replace_names
@@ -338,6 +340,29 @@ def main(uid):
     estimated_angles.to_netcdf(f"estimated_angles_{uid}.nc")
     offsets.to_netcdf(f"offsets_{uid}.nc")
 
+
+    # Connect to MongoDB
+    client = MongoClient("mongodb://localhost:27017/")  # Replace with your MongoDB connection string
+    db = client["bessyii"]  # Replace "mydatabase" with your desired database name
+    offset_collection = db["offsets"]  
+    estimated_angles_collection = db["estimatedangles"]  
+    preprocessed_measurement_collection = db["preprocessedmeasurement"]  
+
+    estimated_angle_dict = estimated_angles.to_dict()
+    estimated_angle_dict['uid'] = uid
+    # Save the dictionary as a document in the collection
+    estimated_angles_collection.insert_one(estimated_angle_dict)
+
+    offsets_dict = offsets.to_dict()
+    offsets_dict['uid'] = uid
+    # Save the dictionary as a document in the collection
+    offset_collection.insert_one(offsets_dict)
+
+    preprocessed_measurement_dict = preprocessed_measurement_data.to_dict()
+    preprocessed_measurement_dict['uid'] = uid
+    # Save the dictionary as a document in the collection
+    preprocessed_measurement_collection.insert_one(preprocessed_measurement_dict)
+    client.close()
 
 if __name__ == "__main__":
     import sys
