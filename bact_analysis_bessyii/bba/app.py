@@ -11,6 +11,8 @@ from pymongo import MongoClient
 from bact_analysis.transverse.process import process_all_gen, combine_all
 from bact_analysis.transverse.twiss_interpolate import interpolate_twiss
 from bact_analysis.utils.preprocess import rename_doublicates, replace_names
+from bact_analysis_bessyii.bba.analysis_model import FitReadyDataPerMagnet
+from bact_bessyii_ophyd.devices.pp.bpm_elem_util import rearrange_bpm_data
 from .app_data import load_and_rearrange_data
 from .calc import angles_to_offset_all
 
@@ -48,69 +50,6 @@ _m2mm = 1.0 / 1000.0
 #         logger.error(f"dict was {d}")
 #         raise ex
 #     return da
-def extract_data(item):
-    try:
-        x_pos_raw = item["x"]["pos_raw"]
-        x_rms_raw = item["x"]["rms_raw"]
-        y_pos_raw = item["y"]["pos_raw"]
-        y_rms_raw = item["y"]["rms_raw"]
-    except KeyError as ex:
-        logger.error(f"Failed to treat item {item}: {ex}")
-        raise ex
-    return ([x_pos_raw, x_rms_raw], [y_pos_raw, y_rms_raw])
-
-
-def bpm_to_dataset(read_data: Sequence[Hashable]) -> xr.DataArray:
-    """
-    Convert BPM data to an xarray DataArray.
-
-    Parameters:
-        read_data (Sequence[Hashable]): List of BPM data dictionaries.
-
-    Returns:
-        xr.DataArray: Converted xarray DataArray.
-
-    Raises:
-        KeyError: If any required keys are missing in the data dictionaries.
-        Exception: If there is an error converting the data to an xarray DataArray.
-    """
-
-    d = {item['name']: extract_data(item) for item in read_data}
-    data = [item for _, item in d.items()]
-    bpm_names = list(d.keys())
-    try:
-        da = xr.DataArray(data=data, dims=["bpm", "plane", "quality"],
-                          coords=[bpm_names, ["x", "y"], ["pos", "rms"]])
-    except Exception as ex:
-        logger.error(f"Failed to convert dict to xarray: {ex}")
-        logger.error(f"Dict was: {d}")
-        raise ex
-    return da
-
-
-def rearrange_bpm_data(bpm_elem_data) -> xr.DataArray:
-    """extract values from the dictonaries and put time into consistent arrays
-    """
-    data = bpm_elem_data
-    r = [[bpm_to_dataset(data.isel(name=name_idx, step=step_idx).values)
-          for step_idx in range(len(data.coords["step"]))]
-         for name_idx in range(len(data.coords["name"]))]
-    ref_item = r[0][0]
-    bpm_names_as_in_model = data.coords["bpm"].values
-    dims = ["name", "step"] + list(ref_item.dims)
-    shape = (len(data.coords["name"]), len(data.coords["step"])) + ref_item.shape
-    da = xr.DataArray(np.empty(shape, dtype=object), dims=dims)
-    for name_idx in range(len(data.coords["name"])):
-        for step_idx in range(len(data.coords["step"])):
-            da[name_idx, step_idx] = r[name_idx][step_idx]
-    da = da.assign_coords(dict(
-        name=data.coords["name"],
-        step=data.coords["step"],
-        bpm=ref_item.coords["bpm"],
-        plane=ref_item.coords["plane"],
-        quality=ref_item.coords["quality"]
-    ))
-    return da
 
 
 def process_rearranged_data(rearranged, bpm_names, bpm_names_as_in_model):
@@ -216,7 +155,7 @@ def load_model(
         required_element_names: Sequence[str],
         filename: str = "bessyii_twiss_thor_scsi_from_twin.nc",
         datadir: str = None,
-):
+) -> Sequence[DistributedOrbitUsedForKick]:
     """
     """
     if datadir is None:
@@ -260,16 +199,21 @@ def load_model(
     ).sortby("ds")
     return selected_model
 
+def get_magnet_names(fit_ready_data):
+    # Initialize an empty list to store the names
+    return [item.name for item in fit_ready_data if isinstance(item, FitReadyDataPerMagnet)]
+
 
 def main(uid):
-    rearranged, dt_configuration = load_and_rearrange_data(uid)
+    fit_ready_data = load_and_rearrange_data(uid)
 
     # find out which elements were powered by the muxer
-    element_names = list(set(rearranged.mux_selected_multiplexer_readback.values.ravel()))
+    # element_names = list(set(rearranged.mux_selected_multiplexer_readback.values.ravel()))
     # measurement / BESSY II epics environment uses upper case names
     # model uses lower case
-    element_names = [name for name in element_names if isinstance(name, str)]
-    element_names_lc = [name.lower() for name in element_names]
+    magnet_names = get_magnet_names(fit_ready_data)
+    # element_names = [name for name in element_names if isinstance(name, str)]
+    element_names_lc = [name.lower() for name in magnet_names]
     selected_model = load_model(required_element_names=element_names_lc)
 
     # Display some info on the loaded model ...
@@ -281,7 +225,7 @@ def main(uid):
     #
     # Currently the measured data uses bpm names as upper case
     # names the model lower case ones ...
-    bpm_names = rearranged.coords["bpm"]
+    bpm_names = fit_ready_data.coords["bpm"]
     bpm_names_lc = [name.lower() for name in bpm_names.values]
 
     # Reduced data set ... the sole data required for further
@@ -289,7 +233,7 @@ def main(uid):
     # here one could reduce the set to bpm's that are known to the
     # model and the measurement
     reduced = magnet_data_to_common_names(
-        rearranged, bpm_names=bpm_names, bpm_names_as_in_model=bpm_names_lc
+        fit_ready_data, bpm_names=bpm_names, bpm_names_as_in_model=bpm_names_lc
     )
 
     # Estimate the angles an equivalent kicker would make

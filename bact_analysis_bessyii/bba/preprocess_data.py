@@ -1,9 +1,16 @@
 """
 """
-from typing import Sequence
+from typing import Sequence, Hashable
+
+import numpy as np
+
 from bact_analysis.utils import preprocess
 import tqdm
 import xarray as xr
+
+from bact_analysis_bessyii.bba.analysis_model import FitReadyOrbit, FitReadyDataPerMagnet, FitReadyData
+from bact_bessyii_ophyd.devices.pp import bpm_elem_util
+from bact_bessyii_ophyd.devices.pp.bpm_elem_util import extract_bpm_data_to_flat_structure
 
 #: variables with bpm names
 bpm_variables = (
@@ -40,7 +47,30 @@ def configuration(run, *, device_name: str = "dt") -> dict:
     return dev_con
 
 
-def load_and_check_data(run, *, device_name: str = "dt", load_all: bool=True) -> (xr.Dataset, dict):
+
+def fill_proprocessed_data(data_for_one_magnet):
+    # todo: validate that setpoint and readback are within limits
+    name, = set(data_for_one_magnet.mux_selected_multiplexer_readback.values)
+
+    # todo:
+    # extact bpm x and y from the data into an array
+    muxer_or_pc_current_change = preprocess.enumerate_changed_value_pairs(
+        data_for_one_magnet.mux_power_converter_setpoint, data_for_one_magnet.mux_selected_multiplexer_readback
+    )
+
+   # r = [{bpm_name : bpm_elem_util.extract_data(one_bpm) for bpm_name, one_bpm }]
+    flat_bpm_data = np.array(extract_bpm_data_to_flat_structure(data_for_one_magnet))
+    return FitReadyDataPerMagnet(
+        name = name,
+        step = muxer_or_pc_current_change.values,
+        excitation =  data_for_one_magnet.mux_selected_multiplexer_readback.values,
+        x = FitReadyOrbit(delta=flat_bpm_data[:, :, 0, 0], rms=flat_bpm_data[:, :, 0, 1]),
+        y = FitReadyOrbit(delta=flat_bpm_data[:, :, 1, 0], rms=flat_bpm_data[:, :, 1, 1]),
+        # todo: add bpm names
+        bpm_pos = data_for_one_magnet.bpm_ds[0].values,
+    )
+
+def load_and_check_data(run, *, device_name: str = "dt", load_all: bool=True) -> FitReadyData:
     """Loads run data and renames dimensons containing bpm data
 
     Loads beam position monitor data and configuration data
@@ -84,10 +114,20 @@ def load_and_check_data(run, *, device_name: str = "dt", load_all: bool=True) ->
 
     replace_dims = {dim: "bpm" for dim in bpm_dims}
     all_data = all_data_.rename(replace_dims).assign_coords(bpm=list(bpm_names))
-    preprocessed = xr.merge(
-        [all_data, muxer_pc_current_change, muxer_or_pc_current_change]
+
+    # ignore data that of first reading ... could be from switching
+    # Todo:
+    #      enumerate before how often the measurement was repeated
+    #      then we do not need to rely that it was added during the
+    #      measurement
+    idx = all_data.cs_setpoint >= 1
+    all_data__ = all_data.isel(time=idx)
+    # data for one magnet
+    # iterate over all magnets instead of hard coded one
+    fit_ready_data = FitReadyData(
+        data = [fill_proprocessed_data(all_data__.isel(time=all_data__.mux_selected_multiplexer_readback == name)) for name in set(all_data__.mux_selected_multiplexer_readback.values)]
     )
-    return preprocessed, config
+    return fit_ready_data
 
 
 __all__ = ["replaceable_dims_bpm", "load_and_check_data"]

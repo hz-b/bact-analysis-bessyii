@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 import numpy as np
-from typing import List
+from typing import List, Sequence, OrderedDict
+
+from bact_bessyii_ophyd.devices.pp.bpmElem import BpmElem
 
 
 # corresponding data array to offset data
@@ -39,20 +41,45 @@ class OffsetData:
     name: str
 
 
-class MeasuredOrbit:
+@dataclass
+class PreprocessedDataItem:
+    """Dsta taken for one (quadrupole) magnet for one excitation
     """
-    Just a suggestion
+    step: int
+    excitation: np.ndarray
+    bpm: Sequence[BpmElem]
+    tune: None
+
+@dataclass
+class PreprocessedData:
+    """Data layout
+    """
+    # name of the magnet the data has been estimated for
+    name: str
+    data : Sequence[PreprocessedDataItem]
+
+@dataclass
+class FitReadyOrbit:
+    """data ready for the fit
+
+    Fit can only deal with 1D arrays
     """
 
-    # the measured offset
+    # the offset (measured using the bpm's)
     delta: np.ndarray
     # estimate of accuracy
     rms: np.ndarray
 
-
 @dataclass
-class PreprocessedData:
-    """Measured data prepared for the fitting routine"""
+class FitReadyDataPerMagnet:
+    """Measured data prepared for the fitting routine
+
+    Todo:
+        review if required?
+
+        bpm names as meta data
+        bpm_pos too?
+    """
 
     # name of the magnet the data has been estimated for
     name: str
@@ -61,8 +88,8 @@ class PreprocessedData:
     # excitation that was applied to the magnet (typically
     # the current of the muxer power converter)
     excitation: np.ndarray
-    x: MeasuredOrbit | None
-    y: MeasuredOrbit | None
+    x: FitReadyOrbit | None
+    y: FitReadyOrbit | None
     # I don't recall if these are the names of the beam position monitors
     # or their position. If their position these are used for plotting
     bpm_pos: np.ndarray
@@ -70,6 +97,17 @@ class PreprocessedData:
     # towards delta or rms
     # quality: str
 
+@dataclass
+class FitReadyData:
+    data : Sequence[FitReadyDataPerMagnet]
+
+@dataclass
+class ValueForElement:
+    """
+    """
+    val : float
+    # element_name
+    name : str
 
 @dataclass
 class DistortedOrbitUsedForKick:
@@ -78,8 +116,10 @@ class DistortedOrbitUsedForKick:
     # The kick strength that was used to produce the kick
     kick_strength: float
     # offsets produced around the orbit by the kick
-    delta: np.ndarray
-
+    # delta: np.ndarray
+    # or should it be a hashable i.e a key value
+    delta : OrderedDict
+    # delta : Sequence[ValueForElement]
 
 @dataclass
 class FitResult:
