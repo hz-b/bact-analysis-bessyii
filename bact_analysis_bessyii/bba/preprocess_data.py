@@ -1,17 +1,7 @@
-"""
-"""
-from typing import Sequence, Hashable
-
-import numpy as np
-
 from bact_analysis.utils import preprocess
 import tqdm
-import xarray as xr
-
-from bact_analysis_bessyii.bba.analysis_model import FitReadyOrbit, FitReadyDataPerMagnet, FitReadyData
-from bact_bessyii_ophyd.devices.pp import bpm_elem_util
-from bact_bessyii_ophyd.devices.pp.bpm_elem_util import extract_bpm_data_to_flat_structure
-
+from bact_analysis_bessyii.model.analysis_model import  MeasurementData
+from bact_analysis_bessyii.model.analysis_util import get_measurement_per_magnet, flatten_for_fit
 #: variables with bpm names
 bpm_variables = (
     "bpm_elem_data",
@@ -59,18 +49,18 @@ def fill_proprocessed_data(data_for_one_magnet):
     )
 
    # r = [{bpm_name : bpm_elem_util.extract_data(one_bpm) for bpm_name, one_bpm }]
-    flat_bpm_data = np.array(extract_bpm_data_to_flat_structure(data_for_one_magnet))
-    return FitReadyDataPerMagnet(
-        name = name,
-        step = muxer_or_pc_current_change.values,
-        excitation =  data_for_one_magnet.mux_selected_multiplexer_readback.values,
-        x = FitReadyOrbit(delta=flat_bpm_data[:, :, 0, 0], rms=flat_bpm_data[:, :, 0, 1]),
-        y = FitReadyOrbit(delta=flat_bpm_data[:, :, 1, 0], rms=flat_bpm_data[:, :, 1, 1]),
-        # todo: add bpm names
-        bpm_pos = data_for_one_magnet.bpm_ds[0].values,
-    )
+   #  flat_bpm_data = np.array(extract_bpm_data_to_flat_structure(data_for_one_magnet))
+   #  return FitReadyDataPerMagnet(
+   #      name = name,
+   #      step = muxer_or_pc_current_change.values,
+   #      excitation =  data_for_one_magnet.mux_selected_multiplexer_readback.values,
+   #      x = MeasuredValues(delta=flat_bpm_data[:, :, 0, 0], rms=flat_bpm_data[:, :, 0, 1]),
+   #      y = MeasuredValues(delta=flat_bpm_data[:, :, 1, 0], rms=flat_bpm_data[:, :, 1, 1]),
+   #      # todo: add bpm names
+   #      bpm_pos = data_for_one_magnet.bpm_ds[0].values,
+   #  )
 
-def load_and_check_data(run, *, device_name: str = "dt", load_all: bool=True) -> FitReadyData:
+def load_and_check_data(run, *, device_name: str = "dt", load_all: bool=True) -> MeasurementData:
     """Loads run data and renames dimensons containing bpm data
 
     Loads beam position monitor data and configuration data
@@ -124,10 +114,11 @@ def load_and_check_data(run, *, device_name: str = "dt", load_all: bool=True) ->
     all_data__ = all_data.isel(time=idx)
     # data for one magnet
     # iterate over all magnets instead of hard coded one
-    fit_ready_data = FitReadyData(
-        data = [fill_proprocessed_data(all_data__.isel(time=all_data__.mux_selected_multiplexer_readback == name)) for name in set(all_data__.mux_selected_multiplexer_readback.values)]
+    preprocessed_data = MeasurementData(
+        measurement = [ get_measurement_per_magnet(all_data__.isel(time=all_data__.mux_selected_multiplexer_readback == name)) for name in set(all_data__.mux_selected_multiplexer_readback.values) ]
     )
-    return fit_ready_data
+    # flatten = flatten_for_fit(preprocessed_data.measurement[0])
+    return preprocessed_data
 
 
 __all__ = ["replaceable_dims_bpm", "load_and_check_data"]

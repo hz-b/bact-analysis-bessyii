@@ -1,56 +1,28 @@
 import logging
 import os.path
+from collections import OrderedDict as OrderedDictImpl
 
 import numpy as np
 import tqdm
 import xarray as xr
-from typing import Sequence, Hashable
+from typing import Sequence
 
 from pymongo import MongoClient
 
 from bact_analysis.transverse.process import process_all_gen, combine_all
 from bact_analysis.transverse.twiss_interpolate import interpolate_twiss
 from bact_analysis.utils.preprocess import rename_doublicates, replace_names
-from bact_analysis_bessyii.bba.analysis_model import FitReadyDataPerMagnet
+from bact_analysis_bessyii.model.analysis_model import MeasurementData, MeasurementPerMagnet, DistortedOrbitUsedForKick, FitResult, MagnetEstimatedAngles, EstimatedAngles, EstimatedAngleForPlane
+from bact_analysis_bessyii.model.analysis_util import flatten_for_fit
+from bact_analysis_bessyii.model.calc import derive_angle
 from bact_bessyii_ophyd.devices.pp.bpm_elem_util import rearrange_bpm_data
+from bact_math_utils.distorted_orbit import closed_orbit_distortion
 from .app_data import load_and_rearrange_data
 from .calc import angles_to_offset_all
 
 logger = logging.getLogger("bact-analysis-bessyii")
 
 _m2mm = 1.0 / 1000.0
-
-
-# def bpm_to_dataset(read_data: Sequence[Hashable]) -> xr.DataArray:
-#     """
-#
-#     todo:
-#         how to include calibration data here?
-#     """
-#
-#     def extract_data(item):
-#         try:
-#             r = (
-#                 [item["x"]["pos_raw"], item["x"]["rms_raw"]],
-#                 [item["y"]["pos_raw"], item["y"]["rms_raw"]]
-#             )
-#         except KeyError as ex:
-#             logger.error(f"Failed to treat item {item}: {ex}")
-#             raise ex
-#         return r
-#
-#     d = {item['name']: extract_data(item) for item in read_data}
-#     data = [item for _, item in d.items()]
-#     bpm_names = list(d.keys())
-#     try:
-#         da = xr.DataArray(data=data, dims=["bpm", "plane", "quality"],
-#                           coords=[bpm_names, ["x", "y"], ["pos", "rms"]])
-#     except Exception as ex:
-#         logger.error(f"Failed to convert dic to xarray {ex}")
-#         logger.error(f"dict was {d}")
-#         raise ex
-#     return da
-
 
 def process_rearranged_data(rearranged, bpm_names, bpm_names_as_in_model):
     da = rearrange_bpm_data(rearranged.bpm_elem_data)
@@ -87,75 +59,11 @@ def magnet_data_to_common_names(
     """
     return process_rearranged_data(rearranged, bpm_names, bpm_names_as_in_model)
 
-    # commented a working version until ......
-    # tmp = rearranged.bpm_elem_data.isel(name=0, step=0).values
-    #
-    # data = rearranged.bpm_elem_data
-    # r = []
-    # for name_idx in range(len(data.coords["name"])):
-    #     l = []
-    #     for step_idx in range(len(data.coords["step"])):
-    #         tmp = rearranged.bpm_elem_data.isel(name=name_idx, step=step_idx).values
-    #         l.append(bpm_to_dataset(tmp))
-    #     r.append(l)
-    # ref_item = r[0][0]
-    # dims = ["name", "step"] + list(ref_item.dims)
-    # # xr.combine_nested()
-    # da = xr.DataArray(r, dims=dims)
-    # da = da.assign_coords(dict(name=data.coords["name"], step=data.coords["step"], bpm=ref_item.coords["bpm"],
-    #                            plane=ref_item.coords["plane"], quality=ref_item.coords["quality"]))
-    # da
-
-
-#    ............
-# ds = xr.DataArray(r)
-# [bpm_to_dataset(v) for v in ]
-# measurement_vars = dict(
-#     dt_bpm_waveform_x_pos="x_pos",
-#     dt_bpm_waveform_y_pos="y_pos",
-#     dt_bpm_waveform_x_rms="x_rms",
-#     dt_bpm_waveform_y_rms="y_rms",
-#     dt_mux_power_converter_setpoint="excitation",
-# )
-
-# todo:
-# apply conversion factors (scaling is enough!)
-# .......................
-# redm4proc = xr.merge(
-#     dict(
-#         x_pos=da.sel(plane="x", quality="pos"),
-#         y_pos=da.sel(plane="y", quality="pos"),
-#         x_rms=da.sel(plane="x", quality="rms"),
-#         y_rms=da.sel(plane="y", quality="rms"),
-#         excitation=rearranged.mux_power_converter_setpoint
-#     )
-# )
-# redm4proc = redm4proc.sel(bpm=bpm_names).rename_dims(bpm="pos").assign_coords(pos=bpm_names_as_in_model)
-
-# ............
-
-#     .reset_coords(drop=True)
-# redm4proc = (
-#     rearranged[list(measurement_vars.keys())]
-#     .rename_vars(**measurement_vars)
-#     .sel(bpm=bpm_names)
-#
-#
-# )
-# # BPM Data are in mm
-# redm4proc["x_pos"] = redm4proc.x_pos * scale
-# redm4proc["y_pos"] = redm4proc.y_pos * scale
-# redm4proc["x_rms"] = redm4proc.x_rms * scale
-# redm4proc["y_rms"] = redm4proc.y_rms * scale
-#
-# return redm4proc
-
-
 def load_model(
         required_element_names: Sequence[str],
         filename: str = "bessyii_twiss_thor_scsi_from_twin.nc",
         datadir: str = None,
-) -> Sequence[DistributedOrbitUsedForKick]:
+) -> Sequence[MeasurementData]:
     """
     """
     if datadir is None:
@@ -199,19 +107,18 @@ def load_model(
     ).sortby("ds")
     return selected_model
 
-def get_magnet_names(fit_ready_data):
+def get_magnet_names(preprocessed_measurement):
     # Initialize an empty list to store the names
-    return [item.name for item in fit_ready_data if isinstance(item, FitReadyDataPerMagnet)]
-
+    return [item.name for item in preprocessed_measurement.measurement if isinstance(item, MeasurementPerMagnet)]
 
 def main(uid):
-    fit_ready_data = load_and_rearrange_data(uid)
+    preprocessed_measurement = load_and_rearrange_data(uid)
 
     # find out which elements were powered by the muxer
     # element_names = list(set(rearranged.mux_selected_multiplexer_readback.values.ravel()))
     # measurement / BESSY II epics environment uses upper case names
     # model uses lower case
-    magnet_names = get_magnet_names(fit_ready_data)
+    magnet_names = get_magnet_names(preprocessed_measurement)
     # element_names = [name for name in element_names if isinstance(name, str)]
     element_names_lc = [name.lower() for name in magnet_names]
     selected_model = load_model(required_element_names=element_names_lc)
@@ -225,60 +132,123 @@ def main(uid):
     #
     # Currently the measured data uses bpm names as upper case
     # names the model lower case ones ...
-    bpm_names = fit_ready_data.coords["bpm"]
-    bpm_names_lc = [name.lower() for name in bpm_names.values]
+    # Get the first MeasurementPerMagnet object
+    first_magnet_measurement = preprocessed_measurement.measurement[0].per_magnet[0]
+
+    # Get the BPM names from the first BPM object
+    bpm_names = [bpm["name"] for bpm in first_magnet_measurement.bpm]
+    bpm_names_lc = [name.lower() for name in bpm_names]
 
     # Reduced data set ... the sole data required for further
     # processing using standard names
     # here one could reduce the set to bpm's that are known to the
     # model and the measurement
-    reduced = magnet_data_to_common_names(
-        fit_ready_data, bpm_names=bpm_names, bpm_names_as_in_model=bpm_names_lc
-    )
+    # reduced = magnet_data_to_common_names(
+    #     preprocessed_measurement, bpm_names=bpm_names, bpm_names_as_in_model=bpm_names_lc
+    # )
 
     # Estimate the angles an equivalent kicker would make
-    element_names = reduced.coords["name"].values
+    # element_names = reduced.coords["name"].values
+    #
+    # orbit = DistortedOrbitUsedForKick(
+    #     kick_strength=0.5,  # Replace with the actual kick strength
+    #     # delta=...,  # Replace with the actual delta data
+    # )
+    #
+    # # Create an instance of FitResult
+    # equivalent_angle = FitResult(
+    #     value=0.25,
+    #     std=0.01,
+    # )
+    #
+    # # Create an instance of FitResult for bpm offsets
+    # bpm_offsets = [
+    #     FitResult(value=0.05, std=0.002),
+    #     FitResult(value=0.03, std=0.001),
+    # ]
+    #
+    # # Create an instance of FitResult for the derived offset
+    # offset = FitResult(
+    #     value=0.12,
+    #     std=0.005,
+    # )
+    #
+    # # Create an instance of EstimatedAngleForPlane for the 'x' plane
+    # estimated_angle_x = EstimatedAngleForPlane(
+    #     orbit=orbit,
+    #     equivalent_angle=equivalent_angle,
+    #     bpm_offsets=bpm_offsets,
+    #     offset=offset,
+    # )
+    #
+    # # Create an instance of EstimatedAngleForPlane for the 'y' plane
+    # estimated_angle_y = EstimatedAngleForPlane(
+    #     orbit=orbit,
+    #     equivalent_angle=equivalent_angle,
+    #     bpm_offsets=bpm_offsets,
+    #     offset=offset,
+    # )
+    #
+    # # Create an instance of EstimatedAngle
+    # estimated_angle = EstimatedAngle(
+    #     name="Some Magnet Name",
+    #     x=estimated_angle_x,
+    #     y=estimated_angle_y,
+    # )
+    #
+    #
+    #
+
+
+
     # print("element_names", element_names)
     # Todo:
     #  test with weights when taking data with rms it is working
     #  e.g . from real measurement data
+    #     beta: np.ndarray,
+    #     mu: np.ndarray,
+    #     *,
+    #     tune: float,
+    #     beta_i: float,
+    #     theta_i: float,
+    #     mu_i: float
+    t_theta = 1e-5 # 10 urad ... close to an average kick
+    distorted_orbit_x = closed_orbit_distortion(
+        selected_model.beta.sel(plane="x").values, selected_model.mu.sel(plane="x").values * 2 * np.pi,
+        tune = selected_model.mu.sel(plane="x").values[-1],
+        beta_i=selected_model.beta.sel(plane="x", pos="q1m1t1r").values,
+        mu_i = selected_model.mu.sel(plane="x", pos="q1m1t1r").values * 2 * np.pi,
+        theta_i = t_theta,
+    )
+    # one magnet one plane
+    kick_x = DistortedOrbitUsedForKick(kick_strength=t_theta, delta=OrderedDictImpl(zip(selected_model.coords['pos'].values, distorted_orbit_x)))
+    flattened = flatten_for_fit(preprocessed_measurement.measurement[0])
+    # flatten_data_as_list = get_data_as_lists(flatten.x)
+
+    angle_x = derive_angle(kick_x, flattened.x, flattened.excitations)
+    # angle_y = derive_angle(kick_y, flattened.y, flattened.excitations)
+
     #
-    estimated_angles_ = {
-        name: item
-        for name, item in tqdm.tqdm(
-            process_all_gen(
-                selected_model,
-                reduced,
-                element_names,
-                bpm_names=bpm_names_lc,
-                theta=1e-5,
-                use_weights=False,
-            ),
-            total=len(element_names),
-            desc="calculating equivalent kick angles",
-        )
-    }
-
-    ds_elems = (
-        selected_model.ds.sel(pos=element_names_lc)
-        .rename(pos="name")
-        .assign_coords(name=element_names)
-    )
-    estimated_angles = (
-        combine_all(estimated_angles_)
-        .merge(dict(ds=selected_model.ds, ds_elems=ds_elems))
-        .sortby(["ds_elems"])
-    )
-    preprocessed_measurement_data = reduced.swap_dims({'pos' : 'bpm'})
-    # preprocessed_measurement_data.name = "preprocessed_measurement_data"
-    # preprocessed_measurement_data = reduced.rename(pos="bpm_pos")
-
-
-    # estimated_angles = estimated_angles.merge(preprocessed_measurement_data)
-
-    offsets = angles_to_offset_all(
-        estimated_angles, names=element_names, tf_scale=75.0 / 28.0
-    )
+    # ds_elems = (
+    #     selected_model.ds.sel(pos=element_names_lc)
+    #     .rename(pos="name")
+    #     .assign_coords(name=element_names)
+    # )
+    # estimated_angles = (
+    #     combine_all(estimated_angles_)
+    #     .merge(dict(ds=selected_model.ds, ds_elems=ds_elems))
+    #     .sortby(["ds_elems"])
+    # )
+    # preprocessed_measurement_data = reduced.swap_dims({'pos' : 'bpm'})
+    # # preprocessed_measurement_data.name = "preprocessed_measurement_data"
+    # # preprocessed_measurement_data = reduced.rename(pos="bpm_pos")
+    #
+    #
+    # # estimated_angles = estimated_angles.merge(preprocessed_measurement_data)
+    #
+    # offsets = angles_to_offset_all(
+    #     estimated_angles, names=element_names, tf_scale=75.0 / 28.0
+    # )
 
     preprocessed_measurement_data.to_netcdf(f"preprocessed_measurement_data_{uid}.nc")
     estimated_angles.to_netcdf(f"estimated_angles_{uid}.nc")

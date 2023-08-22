@@ -1,6 +1,8 @@
+
 from dataclasses import dataclass
-import numpy as np
 from typing import List, Sequence, OrderedDict
+
+import numpy as np
 
 from bact_bessyii_ophyd.devices.pp.bpmElem import BpmElem
 
@@ -32,7 +34,6 @@ class OffsetData:
 
     The result a None if not available (e.g. failed fit or measurement)
     """
-
     # or better horizontal ?
     x: OffsetFitResult | None
     # or better vertical ?
@@ -42,84 +43,112 @@ class OffsetData:
 
 
 @dataclass
-class PreprocessedDataItem:
+class MeasurementPoint:
     """Dsta taken for one (quadrupole) magnet for one excitation
     """
     step: int
     excitation: np.ndarray
     bpm: Sequence[BpmElem]
-    tune: None
+    # todo: add processing of the tune
+    # tune: Sequence[TuneModel]
+
 
 @dataclass
-class PreprocessedData:
-    """Data layout
+class MeasurementPerMagnet:
+    """A set of data required to calculate the offset of this magnet
     """
     # name of the magnet the data has been estimated for
     name: str
-    data : Sequence[PreprocessedDataItem]
+    per_magnet: Sequence[MeasurementPoint]
+
+
 
 @dataclass
-class FitReadyOrbit:
-    """data ready for the fit
+class MeasurementData:
+    """Data or one measurement campaign (typically whole machine)
 
-    Fit can only deal with 1D arrays
+    I think geometers tend to call that an epoc
     """
+    measurement: Sequence[MeasurementPerMagnet]
 
-    # the offset (measured using the bpm's)
-    delta: np.ndarray
-    # estimate of accuracy
-    rms: np.ndarray
+
+@dataclass
+class MeasuredItem:
+    """
+    Mathematically speaking a random variable described by its first two momenta
+    """
+    #: value returned by the measurement, typically close to the first momentum
+    value: float
+    #: estimate of its error typicallz similar to the first momentum
+    rms: float
+
+
+@dataclass
+class MeasuredValues:
+    """Orbit data along the ring, e.g. as measured by the beam position monitors
+    """
+    data: OrderedDict[str, MeasuredItem]
+    pass
 
 @dataclass
 class FitReadyDataPerMagnet:
     """Measured data prepared for the fitting routine
-
     Todo:
         review if required?
 
         bpm names as meta data
         bpm_pos too?
     """
-
     # name of the magnet the data has been estimated for
     name: str
     # sequence number of the measurement (0, 1, 2, 3 ...)
-    step: np.ndarray
+    steps: np.ndarray
     # excitation that was applied to the magnet (typically
     # the current of the muxer power converter)
-    excitation: np.ndarray
-    x: FitReadyOrbit | None
-    y: FitReadyOrbit | None
+    excitations: np.ndarray
+    x: Sequence[MeasuredValues] | None
+    y: Sequence[MeasuredValues] | None
+
     # I don't recall if these are the names of the beam position monitors
     # or their position. If their position these are used for plotting
+    # todo: move to meta data
     bpm_pos: np.ndarray
     # don't recall what it is I guess was used as index
     # towards delta or rms
     # quality: str
 
+
 @dataclass
 class FitReadyData:
-    data : Sequence[FitReadyDataPerMagnet]
+    data: Sequence[FitReadyDataPerMagnet]
+
 
 @dataclass
 class ValueForElement:
     """
     """
-    val : float
+    val: float
     # element_name
-    name : str
+    name: str
+
 
 @dataclass
 class DistortedOrbitUsedForKick:
-    """Orbit that an equivalent kicker would create"""
+    """Orbit that an equivalent kicker would create
+
+    Todo: include magnet name?
+    """
 
     # The kick strength that was used to produce the kick
     kick_strength: float
     # offsets produced around the orbit by the kick
+    # index : name of the element
+    # value: orbit deviation at this spot
     # delta: np.ndarray
     # or should it be a hashable i.e a key value
-    delta : OrderedDict
-    # delta : Sequence[ValueForElement]
+    # delta : OrderedDict
+    delta : OrderedDict[str, float]
+
 
 @dataclass
 class FitResult:
@@ -133,13 +162,18 @@ class EstimatedAngleForPlane:
     # the angle that is corresponding to this kick
     equivalent_angle: FitResult
     # retrieved from the fit measurement
-    bpm_offsets: List[FitResult]
+    bpm_offsets: OrderedDict[str, FitResult]
     # or derived offset ... no need to separate it
     offset: FitResult
 
 
 @dataclass
-class EstimatedAngle:
+class MagnetEstimatedAngles:
+    #: name of the magnet the angle estimate was made for
     name: str
     x: EstimatedAngleForPlane
     y: EstimatedAngleForPlane
+
+@dataclass
+class EstimatedAngles:
+    per_magnet : OrderedDict[str, MagnetEstimatedAngles]
