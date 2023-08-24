@@ -23,12 +23,11 @@ def get_measurement_per_magnet(data_for_one_magnet):
                     ]
     )
 
-def flatten_for_fit(magnet_measurement_data:MeasurementPerMagnet) -> FitReadyDataPerMagnet:
-
+def flatten_for_fit(magnet_measurement_data:MeasurementPerMagnet, magnet_name) -> FitReadyDataPerMagnet:
     x_values = []
     y_values = []
     # flatten out the measurement points
-    for measurement_point in magnet_measurement_data.per_magnet:
+    for measurement_point in magnet_measurement_data:
         x_data = []
         y_data = []
 
@@ -47,9 +46,9 @@ def flatten_for_fit(magnet_measurement_data:MeasurementPerMagnet) -> FitReadyDat
         )
 
     return FitReadyDataPerMagnet(
-        name=magnet_measurement_data.name,
-        steps=[measurement_point.step for measurement_point in magnet_measurement_data.per_magnet],
-        excitations=[measurement_point.excitation for measurement_point in magnet_measurement_data.per_magnet],
+        name=magnet_name,
+        steps=[measurement_point.step for measurement_point in magnet_measurement_data],
+        excitations=[measurement_point.excitation for measurement_point in magnet_measurement_data],
         x=x_values,
         y=y_values,
         bpm_pos=None # todo: add bpm_pos measurement_point.bpm_pos | None

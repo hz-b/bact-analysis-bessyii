@@ -1,6 +1,6 @@
-
 from dataclasses import dataclass
-from typing import List, Sequence, OrderedDict
+from enum import IntEnum
+from typing import Sequence, OrderedDict
 
 import numpy as np
 
@@ -14,7 +14,24 @@ from bact_bessyii_ophyd.devices.pp.bpmElem import BpmElem
 #    coords=[["x", "y"], ["value", "error"], names],
 # )
 
+class Polarity(IntEnum):
+    positive = 1
+    negative = -1
 
+@dataclass
+class MagnetInfo:
+    """
+    """
+    #: length of the magnet
+    length: float
+    #: transfer function i.e. K per A
+    #: todo check if it is K or G
+    tf: float
+    #: sign to apply to the angle
+    #: e.g.
+    #:    * for focusing quadrupole x = 1, y = -1
+    #:    * for defocusing quadrupole x = -1, y = 1
+    polarity: Polarity
 @dataclass
 class OffsetFitResult:
     """Magnet offset obtained by BBA for one plane
@@ -62,7 +79,6 @@ class MeasurementPerMagnet:
     per_magnet: Sequence[MeasurementPoint]
 
 
-
 @dataclass
 class MeasurementData:
     """Data or one measurement campaign (typically whole machine)
@@ -89,6 +105,7 @@ class MeasuredValues:
     """
     data: OrderedDict[str, MeasuredItem]
     pass
+
 
 @dataclass
 class FitReadyDataPerMagnet:
@@ -147,7 +164,7 @@ class DistortedOrbitUsedForKick:
     # delta: np.ndarray
     # or should it be a hashable i.e a key value
     # delta : OrderedDict
-    delta : OrderedDict[str, float]
+    delta: OrderedDict[str, float]
 
 
 @dataclass
@@ -174,6 +191,9 @@ class MagnetEstimatedAngles:
     x: EstimatedAngleForPlane
     y: EstimatedAngleForPlane
 
+
 @dataclass
 class EstimatedAngles:
-    per_magnet : OrderedDict[str, MagnetEstimatedAngles]
+    per_magnet: OrderedDict[str, MagnetEstimatedAngles]
+    # metadata
+    md: object | None

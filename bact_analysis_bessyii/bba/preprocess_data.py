@@ -1,13 +1,19 @@
+import functools
+import logging
+
+from databroker import catalog
+
 from bact_analysis.utils import preprocess
 import tqdm
 from bact_analysis_bessyii.model.analysis_model import  MeasurementData
-from bact_analysis_bessyii.model.analysis_util import get_measurement_per_magnet, flatten_for_fit
+from bact_analysis_bessyii.model.analysis_util import get_measurement_per_magnet
 #: variables with bpm names
 bpm_variables = (
     "bpm_elem_data",
     "bpm_ds",
 )
 
+logger = logging.getLogger("bact-analysis")
 
 def replaceable_dims_bpm(dataset, variable_names=bpm_variables, **kwargs) -> list:
     """replace names that are typically used by the BESSY II device"""
@@ -35,30 +41,6 @@ def configuration(run, *, device_name: str = "dt") -> dict:
     configuration = descriptor["configuration"]
     dev_con = configuration[device_name]
     return dev_con
-
-
-
-def fill_proprocessed_data(data_for_one_magnet):
-    # todo: validate that setpoint and readback are within limits
-    name, = set(data_for_one_magnet.mux_selected_multiplexer_readback.values)
-
-    # todo:
-    # extact bpm x and y from the data into an array
-    muxer_or_pc_current_change = preprocess.enumerate_changed_value_pairs(
-        data_for_one_magnet.mux_power_converter_setpoint, data_for_one_magnet.mux_selected_multiplexer_readback
-    )
-
-   # r = [{bpm_name : bpm_elem_util.extract_data(one_bpm) for bpm_name, one_bpm }]
-   #  flat_bpm_data = np.array(extract_bpm_data_to_flat_structure(data_for_one_magnet))
-   #  return FitReadyDataPerMagnet(
-   #      name = name,
-   #      step = muxer_or_pc_current_change.values,
-   #      excitation =  data_for_one_magnet.mux_selected_multiplexer_readback.values,
-   #      x = MeasuredValues(delta=flat_bpm_data[:, :, 0, 0], rms=flat_bpm_data[:, :, 0, 1]),
-   #      y = MeasuredValues(delta=flat_bpm_data[:, :, 1, 0], rms=flat_bpm_data[:, :, 1, 1]),
-   #      # todo: add bpm names
-   #      bpm_pos = data_for_one_magnet.bpm_ds[0].values,
-   #  )
 
 def load_and_check_data(run, *, device_name: str = "dt", load_all: bool=True) -> MeasurementData:
     """Loads run data and renames dimensons containing bpm data
@@ -120,5 +102,19 @@ def load_and_check_data(run, *, device_name: str = "dt", load_all: bool=True) ->
     # flatten = flatten_for_fit(preprocessed_data.measurement[0])
     return preprocessed_data
 
+@functools.lru_cache
+def load_and_rearrange_data(uid: str, catalog_name: str = "heavy_local"):
+    """load data using uid and make it selectable per magnet
+    Todo:
+        Require loading from other formats?
+    """
+    try:
+        db = catalog[catalog_name]
+        run = db[uid]
+    except:
+        logger.warning(f'using catalog name {catalog_name} uid {uid}')
+        raise
+    return load_and_check_data(run, device_name="bpm")
 
-__all__ = ["replaceable_dims_bpm", "load_and_check_data"]
+
+__all__ = ["replaceable_dims_bpm", "load_and_check_data", "load_and_rearrange_data"]

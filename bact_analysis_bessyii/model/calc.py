@@ -1,20 +1,79 @@
+import copy
 import logging
 
-from bact_analysis_bessyii.model.analysis_model import MeasuredValues, DistortedOrbitUsedForKick, EstimatedAngleForPlane, FitResult
+from bact_analysis_bessyii.business_logic.obsolete import get_polarity_by_magnet_name, get_length_by_magnet_name
+from bact_analysis_bessyii.model.analysis_model import MeasuredValues, DistortedOrbitUsedForKick, \
+    EstimatedAngleForPlane, FitResult, MagnetEstimatedAngles, MagnetInfo
 from typing import Sequence
-from collections import OrderedDict as OrderedDictmpl
 from scipy.linalg import lstsq
 import numpy as np
-
-from bact_analysis_bessyii.model.analysis_util import get_data_as_lists
+from collections import OrderedDict as OrderedDictImpl
+from bact_analysis_bessyii.model.analysis_util import get_data_as_lists, flatten_for_fit
+from bact_math_utils.distorted_orbit import closed_orbit_distortion
 from bact_math_utils.linear_fit import x_to_cov, cov_to_std
 
 logger = logging.getLogger("bact-analysis")
 
+def calculate_angle_to_offset(tf: float, length: float, polarity: int, alpha: float, tf_scale : float=1.0) -> float:
+    r"""Derive offset from measured specific kick angle
+
+    Args:
+        tf:       central quadrupole strength K1  per excitation
+                  dK/dI
+        length:   magnet length
+        polarity: polarity of the circuit
+        alpha:    angle per unit excitation
+        tf_scale: how to scale the transfer function (e.g. used if
+                  muxer auxcillary coils has many more windings than
+                  main coil)
+
+
+    A (quadrupole) offset :math:`\Delta x_{quad}` gives an kick
+    angle of
+
+    .. math::
+
+        \frac{\Delta \vartheta}{\Delta I} =
+                \frac{\Delta K_1}{\Delta I}\, L \,\Delta x_{quad}
+
+    Here the specific kick angle :math:`\alpha` and the specific
+    exitation :math:`t_f` are used.
+
+    .. math::
+        \alpha = \frac{\Delta \vartheta}{\Delta I} \qquad
+         t_f = \frac{\Delta K_1}{\Delta I}
+
+    Thus one obtains
+
+    .. math::
+        \Delta x_{quad} = \frac{\alpha}{L \, t_f}
+
+
+    Note:
+         due to conventions:
+                tf is positive for x and negative for y
+                if focusing or not focusing is now hidden in the poliarty?
+
+    Todo:
+        review handling of tf and polarity
+    """
+
+    devisor = tf * tf_scale * polarity * length
+    offset = alpha / devisor
+    return offset
+
+def angle_to_offset(magnet_info: MagnetInfo, angle: np.ndarray) -> np.ndarray:
+    """
+
+    Args:
+        angle: equivalent kick angle estimated from beam based alignment
+    """
+    return calculate_angle_to_offset(magnet_info.tf, magnet_info.length, magnet_info.polarity, angle)
 
 def angle(dist_orb: np.ndarray, meas_orb: np.ndarray) -> (np.ndarray, np.ndarray):
     """Estimate angle using kick model
 
+    Function to calculate angle between distorted orbit and measured data
     Fits the exictation of the kick and the offset of the quadrupoles
     (thus the ideal orbit does not need to be subtracted beforehand)
 
@@ -48,11 +107,41 @@ def angle(dist_orb: np.ndarray, meas_orb: np.ndarray) -> (np.ndarray, np.ndarray
 
     return fitres[0], std
 
+def get_magnet_estimated_angle(measurement_per_magnet, selected_model,t_theta) -> MagnetEstimatedAngles:
+    name = measurement_per_magnet.name 
+    return MagnetEstimatedAngles(
+        name = name,
+        x = get_estimated_angle_for_plane("x", name, measurement_per_magnet.per_magnet, selected_model,t_theta ),
+        y = get_estimated_angle_for_plane("y", name, measurement_per_magnet.per_magnet, selected_model,t_theta )
+    )
+def calculate_offset(angle, ):
+
+    pass
+def get_estimated_angle_for_plane(plane, magnet_name, per_magnet_measurement, selected_model,t_theta) -> EstimatedAngleForPlane:
+    """Function to get estimated angle for a specific plane per magnet
+    """
+    # Calculate distorted orbit based on provided model data
+    distorted_orbit = closed_orbit_distortion(
+        selected_model.beta.sel(plane=plane).values, selected_model.mu.sel(plane=plane).values * 2 * np.pi,
+        tune=selected_model.mu.sel(plane=plane).values[-1],
+        beta_i=selected_model.beta.sel(plane=plane, pos=magnet_name).values,
+        mu_i=selected_model.mu.sel(plane=plane, pos=magnet_name).values * 2 * np.pi,
+        theta_i=t_theta,
+    )
+    # one magnet one plane
+    kick = DistortedOrbitUsedForKick(kick_strength=t_theta, delta=OrderedDictImpl(
+        zip(selected_model.coords['pos'].values, distorted_orbit)))
+    # Prepare measured data and perform fitting
+    flattened = flatten_for_fit(per_magnet_measurement,magnet_name)
+    #return an object of EstimatedAngleForPlane
+    return derive_angle(kick, getattr(flattened, plane), flattened.excitations, plane, magnet_name)
 
 def derive_angle(
     orbit_for_kick: DistortedOrbitUsedForKick,
     measured_data: Sequence[MeasuredValues],
-    excitations: np.ndarray
+    excitations: np.ndarray,
+    plane,
+    magnet_name
 ) -> EstimatedAngleForPlane:
     """Kicker angle derived from expected orbit, excitation and distortion measurements
 
@@ -135,8 +224,21 @@ def derive_angle(
     p, p_std  = result
     # assuming that only one parameter is used
     # todo: alternative use name length
+    equivalent_angle = FitResult(value=p[-1] * orbit_for_kick.kick_strength, std=p_std[-1] * orbit_for_kick.kick_strength)
+
+    magnet_info = MagnetInfo(
+        length=get_length_by_magnet_name(magnet_name),
+        # nearly the same for all ... to be looked up
+        tf = 0.01,
+        polarity=get_polarity_by_magnet_name(magnet_name)
+    )
+    magnet_info = copy.copy(magnet_info)
+    if plane == "y":
+        magnet_info.polarity *= -1
+    tmp = angle_to_offset(magnet_info, np.array([equivalent_angle.value, equivalent_angle.std]))
+    offset = FitResult(value=tmp[0], std=tmp[1])
     return EstimatedAngleForPlane(orbit=orbit_for_kick,
-                                  equivalent_angle=FitResult(value=p[-1] * orbit_for_kick.kick_strength, std=p_std[-1] * orbit_for_kick.kick_strength),
-                                  bpm_offsets=OrderedDictmpl(zip(measurement_position_names, [FitResult(value=v, std=s) for v, s in zip(p[:n_orb], p_std[:n_orb])])),
-                                  offset=None
+                                  equivalent_angle=equivalent_angle,
+                                  bpm_offsets=OrderedDictImpl(zip(measurement_position_names, [FitResult(value=v, std=s) for v, s in zip(p[:n_orb], p_std[:n_orb])])),
+                                  offset=offset
                                   )
