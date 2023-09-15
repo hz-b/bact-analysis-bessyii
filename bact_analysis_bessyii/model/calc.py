@@ -1,6 +1,11 @@
 import logging
 
-from bact_analysis_bessyii.model.analysis_model import MeasuredValues, DistortedOrbitUsedForKick, EstimatedAngleForPlane, FitResult
+from bact_analysis_bessyii.model.analysis_model import (
+    MeasuredValues,
+    DistortedOrbitUsedForKick,
+    EstimatedAngleForPlane,
+    FitResult,
+)
 from typing import Sequence
 from collections import OrderedDict as OrderedDictmpl
 from scipy.linalg import lstsq
@@ -52,7 +57,7 @@ def angle(dist_orb: np.ndarray, meas_orb: np.ndarray) -> (np.ndarray, np.ndarray
 def derive_angle(
     orbit_for_kick: DistortedOrbitUsedForKick,
     measured_data: Sequence[MeasuredValues],
-    excitations: np.ndarray
+    excitations: np.ndarray,
 ) -> EstimatedAngleForPlane:
     """Kicker angle derived from expected orbit, excitation and distortion measurements
 
@@ -70,7 +75,9 @@ def derive_angle(
     excitations = np.asarray(excitations)
     # todo: consistent naming!
     measurement_position_names = measured_data[0].data.keys()
-    orbit = np.asarray([orbit_for_kick.delta[name.lower()] for name in measurement_position_names])
+    orbit = np.asarray(
+        [orbit_for_kick.delta[name.lower()] for name in measurement_position_names]
+    )
 
     # Todo extract orbit parameters only for bpms ...
 
@@ -82,8 +89,8 @@ def derive_angle(
     sqw = None
 
     # check that these both are vectors
-    n_exc, = excitations.shape
-    n_orb, = orbit.shape
+    (n_exc,) = excitations.shape
+    (n_orb,) = orbit.shape
 
     # prepare the left hand side of the fit ... 2 steps
     # step 1
@@ -99,8 +106,7 @@ def derive_angle(
     sorb = excitations[:, np.newaxis] * orbit[np.newaxis, :]
     if sqw is not None:
         sorb = sorb * sqw
-    A_prep[:, :, -1] =  sorb
-
+    A_prep[:, :, -1] = sorb
 
     # todo: check that the coordinates are in the appropriate order
     A = A_prep.reshape(-1, n_orb + 1)
@@ -131,12 +137,20 @@ def derive_angle(
         logger.error(txt)
         raise exc
 
-
-    p, p_std  = result
+    p, p_std = result
     # assuming that only one parameter is used
     # todo: alternative use name length
-    return EstimatedAngleForPlane(orbit=orbit_for_kick,
-                                  equivalent_angle=FitResult(value=p[-1] * orbit_for_kick.kick_strength, std=p_std[-1] * orbit_for_kick.kick_strength),
-                                  bpm_offsets=OrderedDictmpl(zip(measurement_position_names, [FitResult(value=v, std=s) for v, s in zip(p[:n_orb], p_std[:n_orb])])),
-                                  offset=None
-                                  )
+    return EstimatedAngleForPlane(
+        orbit=orbit_for_kick,
+        equivalent_angle=FitResult(
+            value=p[-1] * orbit_for_kick.kick_strength,
+            std=p_std[-1] * orbit_for_kick.kick_strength,
+        ),
+        bpm_offsets=OrderedDictmpl(
+            zip(
+                measurement_position_names,
+                [FitResult(value=v, std=s) for v, s in zip(p[:n_orb], p_std[:n_orb])],
+            )
+        ),
+        offset=None,
+    )
