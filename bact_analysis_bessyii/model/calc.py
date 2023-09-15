@@ -1,9 +1,12 @@
 import copy
 import logging
 
-from bact_analysis_bessyii.business_logic.obsolete import get_polarity_by_magnet_name, get_length_by_magnet_name
-from bact_analysis_bessyii.model.analysis_model import MeasuredValues, DistortedOrbitUsedForKick, \
-    EstimatedAngleForPlane, FitResult, MagnetEstimatedAngles, MagnetInfo
+from bact_analysis_bessyii.model.analysis_model import (
+    MeasuredValues,
+    DistortedOrbitUsedForKick,
+    EstimatedAngleForPlane,
+    FitResult,
+)
 from typing import Sequence
 from scipy.linalg import lstsq
 import numpy as np
@@ -108,7 +111,7 @@ def angle(dist_orb: np.ndarray, meas_orb: np.ndarray) -> (np.ndarray, np.ndarray
     return fitres[0], std
 
 def get_magnet_estimated_angle(measurement_per_magnet, selected_model,t_theta) -> MagnetEstimatedAngles:
-    name = measurement_per_magnet.name 
+    name = measurement_per_magnet.name
     return MagnetEstimatedAngles(
         name = name,
         x = get_estimated_angle_for_plane("x", name, measurement_per_magnet.per_magnet, selected_model,t_theta ),
@@ -159,7 +162,9 @@ def derive_angle(
     excitations = np.asarray(excitations)
     # todo: consistent naming!
     measurement_position_names = measured_data[0].data.keys()
-    orbit = np.asarray([orbit_for_kick.delta[name.lower()] for name in measurement_position_names])
+    orbit = np.asarray(
+        [orbit_for_kick.delta[name.lower()] for name in measurement_position_names]
+    )
 
     # Todo extract orbit parameters only for bpms ...
 
@@ -171,8 +176,8 @@ def derive_angle(
     sqw = None
 
     # check that these both are vectors
-    n_exc, = excitations.shape
-    n_orb, = orbit.shape
+    (n_exc,) = excitations.shape
+    (n_orb,) = orbit.shape
 
     # prepare the left hand side of the fit ... 2 steps
     # step 1
@@ -188,8 +193,7 @@ def derive_angle(
     sorb = excitations[:, np.newaxis] * orbit[np.newaxis, :]
     if sqw is not None:
         sorb = sorb * sqw
-    A_prep[:, :, -1] =  sorb
-
+    A_prep[:, :, -1] = sorb
 
     # todo: check that the coordinates are in the appropriate order
     A = A_prep.reshape(-1, n_orb + 1)
@@ -220,25 +224,20 @@ def derive_angle(
         logger.error(txt)
         raise exc
 
-
-    p, p_std  = result
+    p, p_std = result
     # assuming that only one parameter is used
     # todo: alternative use name length
-    equivalent_angle = FitResult(value=p[-1] * orbit_for_kick.kick_strength, std=p_std[-1] * orbit_for_kick.kick_strength)
-
-    magnet_info = MagnetInfo(
-        length=get_length_by_magnet_name(magnet_name),
-        # nearly the same for all ... to be looked up
-        tf = 0.01,
-        polarity=get_polarity_by_magnet_name(magnet_name)
+    return EstimatedAngleForPlane(
+        orbit=orbit_for_kick,
+        equivalent_angle=FitResult(
+            value=p[-1] * orbit_for_kick.kick_strength,
+            std=p_std[-1] * orbit_for_kick.kick_strength,
+        ),
+        bpm_offsets=OrderedDictmpl(
+            zip(
+                measurement_position_names,
+                [FitResult(value=v, std=s) for v, s in zip(p[:n_orb], p_std[:n_orb])],
+            )
+        ),
+        offset=None,
     )
-    magnet_info = copy.copy(magnet_info)
-    if plane == "y":
-        magnet_info.polarity *= -1
-    tmp = angle_to_offset(magnet_info, np.array([equivalent_angle.value, equivalent_angle.std]))
-    offset = FitResult(value=tmp[0], std=tmp[1])
-    return EstimatedAngleForPlane(orbit=orbit_for_kick,
-                                  equivalent_angle=equivalent_angle,
-                                  bpm_offsets=OrderedDictImpl(zip(measurement_position_names, [FitResult(value=v, std=s) for v, s in zip(p[:n_orb], p_std[:n_orb])])),
-                                  offset=offset
-                                  )

@@ -38,7 +38,6 @@ class OffsetFitResult:
 
     Fit of the deviated orbit to the beam based alignment procedure
     """
-
     # offset of the (quadrupole magnet)
     value: float
     # estimate of its accuracy
