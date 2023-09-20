@@ -88,8 +88,8 @@ def main(uid):
     # Connect to MongoDB
     # Convert the EstimatedAngles instance to a dictionary
     estimated_angles_dict = asdict(estimated_angles)
-
-    client = MongoClient("mongodb://localhost:27017/")  # Replace with your MongoDB connection string
+    # MongoClient("mongodb://mongodb.bessy.de:27017/")
+    client = MongoClient("mongodb://127.0.0.1:27017/")  # Replace with your MongoDB connection string
     db = client["bessyii"]  # Replace "mydatabase" with your desired database name
     estimated_angles_collection = db["estimatedangles"]
 
