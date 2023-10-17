@@ -108,7 +108,9 @@ def angle(dist_orb: np.ndarray, meas_orb: np.ndarray) -> (np.ndarray, np.ndarray
     return fitres[0], std
 
 def get_magnet_estimated_angle(measurement_per_magnet, selected_model,t_theta) -> MagnetEstimatedAngles:
-    name = measurement_per_magnet.name 
+    name = measurement_per_magnet.name
+    name = name.lower()
+    logger.info(f"magnet name {name=}")
     return MagnetEstimatedAngles(
         name = name,
         x = get_estimated_angle_for_plane("x", name, measurement_per_magnet.per_magnet, selected_model,t_theta ),
