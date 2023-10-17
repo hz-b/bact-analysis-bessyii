@@ -1,0 +1,5 @@
+# as backend for the kick file backuped by xarray
+# to be removed as soon as the kick approximation
+# is calculated on the fly
+xarray
+h5netcdf
