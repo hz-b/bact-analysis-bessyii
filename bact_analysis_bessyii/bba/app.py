@@ -1,23 +1,37 @@
 import logging
 import os.path
 from dataclasses import asdict
+import functools
 from typing import Sequence
+import tqdm
 import xarray as xr
 from pymongo import MongoClient
 from bact_analysis.transverse.twiss_interpolate import interpolate_twiss
 from bact_analysis.utils.preprocess import rename_doublicates, replace_names
-from bact_analysis_bessyii.bba.preprocess_data import load_and_rearrange_data
-from bact_analysis_bessyii.model.analysis_model import MeasurementData, MeasurementPerMagnet, EstimatedAngles
+from bact_analysis_bessyii.bba.preprocess_data import (
+    load_and_rearrange_data,
+    load_and_rearrange_data_from_files,
+)
+from bact_analysis_bessyii.model.analysis_model import (
+    MeasurementData,
+    MeasurementPerMagnet,
+    EstimatedAngles,
+)
+from bact_analysis_bessyii.model.analysis_util import (
+    measurement_per_magnet_bpms_raw_data_to_m,
+BPMCalibrationsRepository, BPMCalibration, BPMCalibrationPlane
+)
 from bact_analysis_bessyii.model.calc import get_magnet_estimated_angle
 
 logger = logging.getLogger("bact-analysis-bessyii")
+
+
 def load_model(
-        required_element_names: Sequence[str],
-        filename: str = "bessyii_twiss_thor_scsi_from_twin.nc",
-        datadir: str = None,
+    required_element_names: Sequence[str],
+    filename: str = "bessyii_twiss_thor_scsi_from_twin.nc",
+    datadir: str = None,
 ) -> Sequence[MeasurementData]:
-    """
-    """
+    """ """
     if datadir is None:
         datadir = os.path.dirname(__file__)
     path = os.path.join(datadir, filename)
@@ -57,16 +71,64 @@ def load_model(
 
 def get_magnet_names(preprocessed_measurement):
     # Initialize an empty list to store the names
-    return [item.name for item in preprocessed_measurement.measurement if isinstance(item, MeasurementPerMagnet)]
+    return [
+        item.name
+        for item in preprocessed_measurement.measurement
+        if isinstance(item, MeasurementPerMagnet)
+    ]
+
+
+class BPMCalibrationsRepositoryBESSYII(BPMCalibrationsRepository):
+    def __init__(self):
+        self.bpm_calibrations = dict(
+            BPMZ4D2R=BPMCalibration(
+                x=BPMCalibrationPlane(scale=0.3e-3), y=BPMCalibrationPlane()
+            ),
+            BPMZ41T6R=BPMCalibration(
+                x=BPMCalibrationPlane(scale=0.2489622e-3),
+                y=BPMCalibrationPlane(scale=0.8050295e-3),
+            ),
+        )
+        self.bpm_calibrations_default = BPMCalibration(
+            x=BPMCalibrationPlane(), y=BPMCalibrationPlane()
+        )
+
+    @functools.lru_cache(maxsize=None)
+    def get(self, name):
+        r = self.bpm_calibrations_default
+        try:
+            r = self.bpm_calibrations[name]
+        except KeyError:
+            logger.info("bpm with name %s uses default configuration", name)
+            pass
+        return r
+
+
+calib_repo = BPMCalibrationsRepositoryBESSYII()
+
 
 def main(uid):
-    preprocessed_measurement = load_and_rearrange_data(uid)
+    # preprocessed_measurement = load_and_rearrange_data(uid)
+    preprocessed_measurement = load_and_rearrange_data_from_files(uid)
+    # convert bpm raw data to processed data
+    # currently for debug to see where we are
+    # meas = preprocessed_measurement.measurement
+    preprocessed_measurement.measurement = [
+        measurement_per_magnet_bpms_raw_data_to_m(m, calib_repo=calib_repo)
+        for m in tqdm.tqdm(
+            preprocessed_measurement.measurement,
+            total=len(preprocessed_measurement.measurement),
+            desc="conv bpm raw -> m",
+        )
+    ]
     # find out which elements were powered by the muxer
     # measurement / BESSY II epics environment uses upper case names
     # model uses lower case
     magnet_names = get_magnet_names(preprocessed_measurement)
     element_names_lc = [name.lower() for name in magnet_names]
     selected_model = load_model(required_element_names=element_names_lc)
+    # control system uses upper case names ... fix the model here as long as required
+    selected_model["pos"] = [name.upper() for name in selected_model.pos.values]
 
     # Display some info on the loaded model ...
     # not to be set off by how the phase advance is stored
@@ -76,25 +138,37 @@ def main(uid):
     first_magnet_measurement = preprocessed_measurement.measurement[0].per_magnet[0]
 
     # Get the BPM names from the first BPM object
-    bpm_names = [bpm["name"] for bpm in first_magnet_measurement.bpm]
-    bpm_names_lc = [name.lower() for name in bpm_names]
+    # bpm_names = [bpm["name"] for bpm in first_magnet_measurement.bpm]
+    # bpm_names_lc = [name.lower() for name in bpm_names]
 
     t_theta = 1e-5  # 10 urad ... close to an average kick
     estimated_angles = EstimatedAngles(
-        per_magnet=[get_magnet_estimated_angle(magnet_measurement, selected_model, t_theta)
-                    for magnet_measurement in preprocessed_measurement.measurement],
-        md="nothing"
+        per_magnet=[
+            # can select pos="pos_raw" and rms="rms_raw"
+            get_magnet_estimated_angle(
+                magnet_measurement, selected_model, t_theta, pos="pos", rms="rms"
+            )
+            for magnet_measurement in tqdm.tqdm(
+                preprocessed_measurement.measurement,
+                desc="est. equiv. angle: ",
+                total=(len(preprocessed_measurement.measurement)),
+            )
+        ],
+        md="nothing",
     )
     # Connect to MongoDB
     # Convert the EstimatedAngles instance to a dictionary
     estimated_angles_dict = asdict(estimated_angles)
+    print("estimated angle calculated")
     # MongoClient("mongodb://mongodb.bessy.de:27017/")
-    client = MongoClient("mongodb://127.0.0.1:27017/")  # Replace with your MongoDB connection string
+    client = MongoClient(
+        "mongodb://127.0.0.1:27017/"
+    )  # Replace with your MongoDB connection string
     db = client["bessyii"]  # Replace "mydatabase" with your desired database name
     estimated_angles_collection = db["estimatedangles"]
 
     # estimated_angle_dict = estimated_angles
-    estimated_angles_dict['uid'] = uid
+    estimated_angles_dict["uid"] = uid
     # Save the dictionary as a document in the collection
     estimated_angles_collection.insert_one(estimated_angles_dict)
     client.close()
@@ -104,12 +178,12 @@ if __name__ == "__main__":
     import sys
 
     try:
-        uid, = sys.argv
+        name, uid = sys.argv
     except ValueError:
         print("need one argument! a uid")
         if True:
-            uid = '9ba454c7-f709-4c42-84b3-410b5ac05d9d'
+            uid = "9ba454c7-f709-4c42-84b3-410b5ac05d9d"
             print(f"Using uid for testing {uid}")
         else:
             sys.exit()
-    main(sys.argv[0])
+    main(uid)

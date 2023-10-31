@@ -6,7 +6,6 @@ import numpy as np
 
 from bact_bessyii_ophyd.devices.pp.bpmElem import BpmElem
 
-
 # corresponding data array to offset data
 # res = xr.DataArray(
 #    data=[[x, x_err], [y, y_err]],
@@ -60,6 +59,47 @@ class OffsetData:
 
 
 @dataclass
+class BPMCalibrationPlane:
+    """scale and offset for the bpm (both in millimeter)
+
+    Todo:
+        check if calc functionality should be singled out to a filter
+
+    """
+
+    #: from bits to -10/10 volt, assuming that bits are signed
+    #: bact2 used 10/(2**15)
+    bit2val : float
+    #: from volt to meter ... 1.0 for most bpm's
+    scale : float
+    #: offset to correct meter for
+    offset : float
+
+    def __init__(self, *, bit2val = 10/(2**15), scale=1e-3, offset=0.0):
+        self.bit2val = bit2val
+        self.scale = scale
+        self.offset = offset
+
+    def to_pos(self, bits):
+        """
+        Todo:
+            cross check with bact2 that the arithmetic is consistent
+        """
+        return (bits * self.bit2val) * self.scale - self.offset
+
+    def to_rms(self, bits):
+        """
+        Todo:
+            check that the scale is positive ?
+        """
+        return abs( (bits * self.bit2val) * self.scale )
+
+@dataclass
+class BPMCalibration:
+    x : BPMCalibrationPlane
+    y : BPMCalibrationPlane
+
+@dataclass
 class MeasurementPoint:
     """Dsta taken for one (quadrupole) magnet for one excitation
     """
@@ -95,7 +135,7 @@ class MeasuredItem:
     """
     #: value returned by the measurement, typically close to the first momentum
     value: float
-    #: estimate of its error typicallz similar to the first momentum
+    #: estimate of its error typically similar to the first momentum
     rms: float
 
 
