@@ -107,17 +107,17 @@ def angle(dist_orb: np.ndarray, meas_orb: np.ndarray) -> (np.ndarray, np.ndarray
 
     return fitres[0], std
 
-def get_magnet_estimated_angle(measurement_per_magnet, selected_model,t_theta) -> MagnetEstimatedAngles:
+def get_magnet_estimated_angle(measurement_per_magnet, selected_model,t_theta, pos="pos", rms="rms") -> MagnetEstimatedAngles:
     name = measurement_per_magnet.name 
     return MagnetEstimatedAngles(
         name = name,
-        x = get_estimated_angle_for_plane("x", name, measurement_per_magnet.per_magnet, selected_model,t_theta ),
-        y = get_estimated_angle_for_plane("y", name, measurement_per_magnet.per_magnet, selected_model,t_theta )
+        x = get_estimated_angle_for_plane("x", name, measurement_per_magnet.per_magnet, selected_model,t_theta, pos=pos, rms=rms ),
+        y = get_estimated_angle_for_plane("y", name, measurement_per_magnet.per_magnet, selected_model,t_theta, pos=pos, rms=rms )
     )
 def calculate_offset(angle, ):
 
     pass
-def get_estimated_angle_for_plane(plane, magnet_name, per_magnet_measurement, selected_model,t_theta) -> EstimatedAngleForPlane:
+def get_estimated_angle_for_plane(plane, magnet_name, per_magnet_measurement, selected_model,t_theta, *, pos="pos", rms="rms") -> EstimatedAngleForPlane:
     """Function to get estimated angle for a specific plane per magnet
     """
     # Calculate distorted orbit based on provided model data
@@ -132,7 +132,7 @@ def get_estimated_angle_for_plane(plane, magnet_name, per_magnet_measurement, se
     kick = DistortedOrbitUsedForKick(kick_strength=t_theta, delta=OrderedDictImpl(
         zip(selected_model.coords['pos'].values, distorted_orbit)))
     # Prepare measured data and perform fitting
-    flattened = flatten_for_fit(per_magnet_measurement,magnet_name)
+    flattened = flatten_for_fit(per_magnet_measurement, magnet_name, pos=pos, rms=rms)
     #return an object of EstimatedAngleForPlane
     return derive_angle(kick, getattr(flattened, plane), flattened.excitations, plane, magnet_name)
 
@@ -159,7 +159,7 @@ def derive_angle(
     excitations = np.asarray(excitations)
     # todo: consistent naming!
     measurement_position_names = measured_data[0].data.keys()
-    orbit = np.asarray([orbit_for_kick.delta[name.lower()] for name in measurement_position_names])
+    orbit = np.asarray([orbit_for_kick.delta[name] for name in measurement_position_names])
 
     # Todo extract orbit parameters only for bpms ...
 
@@ -208,6 +208,10 @@ def derive_angle(
 
     b = np.ravel(measurement)
     # excecute fit
+    logger.debug("# excitations %s points in orbit %s", n_exc, n_orb)
+    logger.debug("calculating angle A.shape %s, b.shape %s", A.shape, b.shape)
+    logger.debug("calculating angle A.dtype %s, b.dtype %s", A.dtype, b.dtype)
+
     try:
         result = angle(A, b)
     except ValueError as exc:
