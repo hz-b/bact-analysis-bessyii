@@ -43,7 +43,7 @@ def angle_to_offset(angles, *, names):
     length = calib.length.sel(name=names)
     # hw2phys contains already the polarity
     polarity = 1
-    res = a2og(hw2phys, length, polarity, angle)
+    res = a2og(hw2phys, length, polarity, angles)
 
     return res
 
