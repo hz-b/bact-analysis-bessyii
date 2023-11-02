@@ -19,9 +19,9 @@ from bact_analysis_bessyii.model.analysis_model import (
 )
 from bact_analysis_bessyii.model.analysis_util import (
     measurement_per_magnet_bpms_raw_data_to_m,
-BPMCalibrationsRepository, BPMCalibration, BPMCalibrationPlane
 )
 from bact_analysis_bessyii.model.calc import get_magnet_estimated_angle
+from .bpm_repo import BPMCalibrationsRepositoryBESSYII
 
 logger = logging.getLogger("bact-analysis-bessyii")
 
@@ -78,30 +78,6 @@ def get_magnet_names(preprocessed_measurement):
     ]
 
 
-class BPMCalibrationsRepositoryBESSYII(BPMCalibrationsRepository):
-    def __init__(self):
-        self.bpm_calibrations = dict(
-            BPMZ4D2R=BPMCalibration(
-                x=BPMCalibrationPlane(scale=0.3e-3), y=BPMCalibrationPlane()
-            ),
-            BPMZ41T6R=BPMCalibration(
-                x=BPMCalibrationPlane(scale=0.2489622e-3),
-                y=BPMCalibrationPlane(scale=0.8050295e-3),
-            ),
-        )
-        self.bpm_calibrations_default = BPMCalibration(
-            x=BPMCalibrationPlane(), y=BPMCalibrationPlane()
-        )
-
-    @functools.lru_cache(maxsize=None)
-    def get(self, name):
-        r = self.bpm_calibrations_default
-        try:
-            r = self.bpm_calibrations[name]
-        except KeyError:
-            logger.info("bpm with name %s uses default configuration", name)
-            pass
-        return r
 
 
 calib_repo = BPMCalibrationsRepositoryBESSYII()
