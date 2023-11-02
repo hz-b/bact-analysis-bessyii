@@ -1,11 +1,11 @@
-from custom.bessyii.analysis.bact_analysis_bessyii.bba import app
+from bact_analysis_bessyii.bba import app
 import logging
 logger= logging.getLogger('bact-analysis-bessyii')
 
 if __name__ == "__main__":
     import sys
     try:
-        uid, = sys.argv
+        name, uid = sys.argv
     except ValueError:
         print("need one argument! a uid")
         if True:
