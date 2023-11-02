@@ -38,8 +38,9 @@ jobs:
       uses: actions/checkout@v4
       with:
           repository: hz-b/bact2-bessyii
-          path: bact2-bessyii
+          ref: 'master' # need to change to dev/main
           token: ${{ secrets.PRIVATE_REPO_ACCESS }}
+          path: bact2-bessyii
           
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v3
