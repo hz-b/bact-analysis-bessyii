@@ -39,7 +39,7 @@ jobs:
       with:
           repository: hz-b/bact2-bessyii
           path: bact2-bessyii
-          token: ${{ secrets.GH_PAT }}
+          token: ${{ secrets.PRIVATE_REPO_ACCESS }}
           
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v3
