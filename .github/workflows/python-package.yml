@@ -34,13 +34,13 @@ jobs:
       with:
           repository: hz-b/bact-analysis
           path: bact-analysis
-    - name: Checkout bact2-bessyii
+    - name: Checkout bact2_bessyii # need to phase out this package
       uses: actions/checkout@v4
       with:
-          repository: hz-b/bact2-bessyii
-          ref: 'master' # need to change to dev/main
+          repository: hz-b/bact2_bessyii
+          # ref: 'master' # need to change to dev/main
           token: ${{ secrets.PRIVATE_REPO_ACCESS }}
-          path: bact2-bessyii
+          path: bact2_bessyii
           
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v3
@@ -58,7 +58,7 @@ jobs:
         
     - name: Install local dependencies
       run: | 
-           for t_dir in bact-math-utils bact-analysis bact-analysis-bessy bact2-bessyii
+           for t_dir in bact-math-utils bact-analysis bact-analysis-bessy bact2_bessyii
            do
               if [ -f $t_dir/requirements.txt ]; then pip install -r $t_dir/requirements.txt; fi
               # make it a path, otherwise it searches pypi repo
