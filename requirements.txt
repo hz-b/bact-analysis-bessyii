@@ -1,5 +1,10 @@
 # as backend for the kick file backuped by xarray
 # to be removed as soon as the kick approximation
 # is calculated on the fly
+numpy
+scipy
 xarray
 h5netcdf
+pymongo
+bact-analysis
+bact-math-utils
