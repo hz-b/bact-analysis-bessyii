@@ -34,6 +34,7 @@ def get_measurement_per_magnet(data_for_one_magnet):
         ],
     )
 
+
 def flatten_for_fit(
     magnet_measurement_data: MeasurementPerMagnet,
 ) -> FitReadyDataPerMagnet:
