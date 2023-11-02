@@ -1,0 +1,83 @@
+# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
+
+name: Python package
+
+on:
+  push:
+    branches: [ "dev/main" ]
+  pull_request:
+    branches: [ "dev/main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11"] # ["3.9", "3.10", "3.11"]
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+          path: main
+    - name: Checkout bact-math-utils
+      uses: actions/checkout@v4
+      with:
+          repository: hz-b/bact-math-utils
+          path: bact-math-utils
+          
+    - name: Checkout bact-analysis
+      uses: actions/checkout@v4
+      with:
+          repository: hz-b/bact-analysis
+          path: bact-analysis
+    - name: Checkout bact2-bessyii
+      uses: actions/checkout@v4
+      with:
+          repository: hz-b/bact2-bessyii
+          path: bact2-bessyii
+          token: ${{ secrets.GH_PAT }}
+          
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+        cache-dependency-path: |
+           **/setup.cfg
+           **/requirements*.txt
+
+    - name: Install pip
+      run: |
+        python -m pip install --upgrade pip wheel
+        python -m pip install flake8 pytest
+        
+    - name: Install local dependencies
+      run: | 
+           for t_dir in bact-math-utils bact-analysis bact-analysis-bessy bact2-bessyii
+           do
+              if [ -f $t_dir/requirements.txt ]; then pip install -r $t_dir/requirements.txt; fi
+              # make it a path, otherwise it searches pypi repo
+              pip install $t_dir/
+           done
+    - name: Install dependencies and this package
+      run: |
+        t_dir=main
+        if [ -f $t_dir/requirements.txt ]; then pip install -r $t_dir/requirements.txt; fi
+        # need to install myself ?
+        # make it a path otherwise pip serach pypi repo
+        pip install $t_dir/
+        
+    - name: Lint with flake8
+      run: |
+        # stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    # not there yet ... these tests are rather involved
+    # - name: Test with pytest
+    #  run: |
+    #    pytest
