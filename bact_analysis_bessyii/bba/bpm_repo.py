@@ -1,7 +1,9 @@
 from ..model.analysis_model import BPMCalibration, BPMCalibrationPlane
 from ..model.analysis_util import BPMCalibrationsRepository
 import functools
+import logging
 
+logger = logging.getLogger("bact-analysis-bessyii")
 
 _inactive_bpms = (
     "BPMZ8T2R",

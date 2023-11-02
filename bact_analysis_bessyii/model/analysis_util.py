@@ -63,7 +63,10 @@ def flatten_for_fit(
     return FitReadyDataPerMagnet(
         name=magnet_name,
         steps=[measurement_point.step for measurement_point in magnet_measurement_data],
-        excitations=[measurement_point.excitation for measurement_point in magnet_measurement_data],
+        excitations=[
+            measurement_point.excitation
+            for measurement_point in magnet_measurement_data
+        ],
         x=x_values,
         y=y_values,
         bpm_pos=None,  # todo: add bpm_pos measurement_point.bpm_pos | None
@@ -138,8 +141,18 @@ def bpms_raw_data_to_m(
     if copy:
         bpm_data = bpm_data.copy()
 
+    def bpm_is_active(bpm_name):
+        """at least one channel"""
+        c = calib_repo.get(bpm_name)
+        flag = c.x.active | c.y.active
+        if not flag:
+            logger.warning("Ignoring bpm %s", bpm_name)
+        return flag
+
     bpm_data = [
-        bpm_raw_data_to_m(a_bpm, copy=copy, calib_repo=calib_repo) for a_bpm in bpm_data
+        bpm_raw_data_to_m(a_bpm, copy=copy, calib_repo=calib_repo)
+        for a_bpm in bpm_data
+        if bpm_is_active(a_bpm["name"])
     ]
     return bpm_data
 

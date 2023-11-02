@@ -74,11 +74,13 @@ class BPMCalibrationPlane:
     scale : float
     #: offset to correct meter for
     offset : float
+    active : bool
 
-    def __init__(self, *, bit2val = 10/(2**15), scale=1e-3, offset=0.0):
+    def __init__(self, *, bit2val = 10/(2**15), scale=1e-3, offset=0.0, active=True):
         self.bit2val = bit2val
         self.scale = scale
         self.offset = offset
+        self.active = active
 
     def to_pos(self, bits):
         """
