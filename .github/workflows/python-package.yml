@@ -58,13 +58,13 @@ jobs:
         
     - name: Install local dependencies
       run: | 
-           for t_dir in bact-math-utils bact-analysis bact-analysis-bessy bact2_bessyii
+           for t_dir in bact-math-utils bact-analysis bact2_bessyii
            do
               if [ -f $t_dir/requirements.txt ]; then pip install -r $t_dir/requirements.txt; fi
               # make it a path, otherwise it searches pypi repo
               pip install $t_dir/
            done
-    - name: Install dependencies and this package
+    - name: Install this package and its dependencies
       run: |
         t_dir=main
         if [ -f $t_dir/requirements.txt ]; then pip install -r $t_dir/requirements.txt; fi
