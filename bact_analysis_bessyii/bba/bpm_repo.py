@@ -25,6 +25,10 @@ _inactive_bpms = (
     "BPMZ41D1R",
     "BPMZ42D1R",
     "BPMZ5D1R",
+
+    # this one is normally active
+    # "BPMZ6D1R",
+    # "BPMZ5T3R"
 )
 
 

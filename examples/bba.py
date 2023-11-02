@@ -1,5 +1,6 @@
 from bact_analysis_bessyii.bba import app
 import logging
+# logging.basicConfig(level=logging.INFO)
 logger= logging.getLogger('bact-analysis-bessyii')
 
 if __name__ == "__main__":
