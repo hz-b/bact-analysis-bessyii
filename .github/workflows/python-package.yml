@@ -38,7 +38,7 @@ jobs:
       uses: actions/checkout@v4
       with:
           repository: hz-b/bact2_bessyii
-          # ref: 'master' # need to change to dev/main
+          ref: 'master' # need to change to dev/main
           token: ${{ secrets.PRIVATE_REPO_ACCESS }}
           path: bact2_bessyii
           
