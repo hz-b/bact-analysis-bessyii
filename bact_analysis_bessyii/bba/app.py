@@ -1,7 +1,6 @@
 import logging
 import os.path
 from dataclasses import asdict
-import functools
 from typing import Sequence
 import tqdm
 import xarray as xr
@@ -76,8 +75,6 @@ def get_magnet_names(preprocessed_measurement):
         for item in preprocessed_measurement.measurement
         if isinstance(item, MeasurementPerMagnet)
     ]
-
-
 
 
 calib_repo = BPMCalibrationsRepositoryBESSYII()

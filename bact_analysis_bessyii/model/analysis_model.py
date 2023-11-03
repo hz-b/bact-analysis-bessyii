@@ -216,6 +216,18 @@ class FitResult:
 
 
 @dataclass
+class ErrorEstimates:
+    """estimates of fit quality
+
+    Todo:
+        use full name or the abbreviations used in stats?
+        provide a value for each excitation?
+    """
+    mean_square_error: Sequence
+    mean_absolute_error: Sequence
+
+
+@dataclass
 class EstimatedAngleForPlane:
     orbit: DistortedOrbitUsedForKick
     # the angle that is corresponding to this kick
@@ -224,6 +236,7 @@ class EstimatedAngleForPlane:
     bpm_offsets: OrderedDict[str, FitResult]
     # or derived offset ... no need to separate it
     offset: FitResult
+    error_estimates : ErrorEstimates
 
 
 @dataclass
