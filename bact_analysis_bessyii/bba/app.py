@@ -99,7 +99,11 @@ def main(uid):
     # model uses lower case
     magnet_names = get_magnet_names(preprocessed_measurement)
     element_names_lc = [name.lower() for name in magnet_names]
-    selected_model = load_model(required_element_names=element_names_lc)
+    #selected_model = load_model(required_element_names=)
+    selected_model = load_model(required_element_names=element_names_lc,
+                                #filename="bessyii_twiss_thor_scsi.nc"
+                                filename="bessyii_twiss_thor_scsi_twin_with_wavelength_shifter.nc"
+                                )
     # control system uses upper case names ... fix the model here as long as required
     selected_model["pos"] = [name.upper() for name in selected_model.pos.values]
 

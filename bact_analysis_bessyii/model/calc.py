@@ -23,6 +23,11 @@ import numpy as np
 from collections import OrderedDict as OrderedDictImpl
 from typing import Sequence
 
+# todo:  delete me
+# just here for debugging
+import matplotlib.pyplot as plt
+
+
 logger = logging.getLogger("bact-analysis")
 
 
@@ -309,6 +314,70 @@ def derive_angle(
         tf=0.01,
         polarity=get_polarity_by_magnet_name(magnet_name),
     )
+
+    # should go to postprocessing
+    if magnet_name in [
+        "Q3M1D7R", "Q1M2T7R", "Q1M2D6R", "Q2M2D4R",
+                       "Q5M2T1R", "Q4M1T6R", "Q3M2T4R", ]:
+        t_pscale = 1e6
+        fig, axes = plt.subplots(4, 1, sharex=True)
+        bpm_names = measured_data[0].data.keys()
+        ax, ax_orb_diff, ax_diff, ax_off = axes
+        # ax, ax_orb_diff = axes
+        ax.set_title(f"Quadrupole {magnet_name} plane {plane}")
+        # reference orbit as obtained from measurement
+        # yes hysteresis taken into account
+        mref = np.mean([measurement[1, :], measurement[-1, :]], axis=0)
+
+        for idx, tmp in enumerate(
+            zip(
+                excitations, sorb,
+                (measurement.T - p[:-1][:, np.newaxis]).T,
+                (measurement.T - mref[np.newaxis,:].T).T,
+            )
+        ):
+            excitation, scaled_orbit, dv0, dv1 = tmp
+            del tmp
+
+            if excitation == 0:
+                continue
+            pscale = t_pscale
+            if excitation < 0:
+                # pscale *= -1
+                pass
+            label = f"$\\Delta I=${excitation} meas {idx}"
+            # fmt:off
+            dv1p = np.concatenate([dv1[-5:], dv1, dv1[:5]])
+            indicesp = np.arange(-5, len(dv1) + 5)
+            indices = np.arange(len(dv1))
+            bpm_names = list(bpm_names)
+            bpm_names_p =  bpm_names[:-5] + bpm_names + bpm_names[:5]
+            line, = ax.plot(indicesp, dv1p * pscale, ".-", linewidth=0.1, label=label + "(-bpm offset)")
+            ax.plot(indices, scaled_orbit * p[-1] * pscale, "+-.", color=line.get_color(), linewidth=0.1, label=label + "(scaled orbit)")
+            ax.plot(dv0 * pscale, ".--", color=line.get_color(), linewidth=0.1, label=label + "(-meas ref orb)")
+
+            ax_orb_diff.plot(indices, (dv1 - scaled_orbit * p[-1]) * pscale, "x-", color=line.get_color(), linewidth=0.1, label=label + "(scaled orbit)")
+
+        ax.set_ylabel(r"dev $\Delta x$, $\Delta y$ [$\mu$m]")
+        ax.legend()
+
+        ax_off.plot(measurement[ 0, :].T * pscale, "x-",  linewidth=0.2, label="start measurement")
+        ax_off.plot(measurement[-1, :].T * pscale, "+--", linewidth=0.2, label="end measurement"  )
+        ax_off.plot(mref * pscale, "+--", linewidth=0.2, label="ref. orb. measured"  )
+        ax_off.plot(p[:-1] * pscale, ".-.", linewidth=0.2, label="bpm offsets (fit)")
+        ax_off.set_ylabel(r"orbit (avg) offset x,y [$\mu$m]")
+        ax_off.legend()
+        # # fmt:on
+        ax_diff.plot((measurement[ 0, :].T - p[:-1]) * pscale, "x-",  linewidth=0.2, label="start measurement")
+        ax_diff.plot((measurement[-1, :].T - p[:-1]) * pscale, "+--", linewidth=0.2, label="end measurement"  )
+        ax_diff.plot((mref - p[:-1]) * pscale, ".-", linewidth=0.2, label="ref orb. measured"  )
+        ax_off.set_ylabel(r"orbit offset -fit, $\Delta$x, $\Delta$y [$\mu$m]")
+        ax_diff.legend()
+        ax_orb_diff.set_xticks(indices)
+        ax_orb_diff.set_xticklabels(bpm_names)
+        plt.setp(ax_off.get_xticklabels(), "horizontalalignment", "right", "verticalalignment", "top", "rotation", 45)
+        # did_plot = True
+
     magnet_info = copy.copy(magnet_info)
     if plane == "y":
         magnet_info.polarity *= -1

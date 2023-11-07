@@ -245,7 +245,7 @@ class MagnetEstimatedAngles:
     name: str
     x: EstimatedAngleForPlane
     y: EstimatedAngleForPlane
-
+    # fit_data : FitReadyDataPerMagnet
 
 @dataclass
 class EstimatedAngles:
