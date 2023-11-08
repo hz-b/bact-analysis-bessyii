@@ -308,20 +308,48 @@ def derive_angle(
         mean_square_error=mean_square_error(dv, axis=-1).tolist(),
         mean_absolute_error=mean_absolute_error(dv, axis=-1).tolist(),
     )
+
+    # quadrupoles: by convention +K for horizontal -K for vertical plane
+    plane_sign = dict(x=1,y=-1)[plane]
     magnet_info = MagnetInfo(
         length=get_length_by_magnet_name(magnet_name),
         # nearly the same for all ... to be looked up
         tf=0.01,
-        polarity=get_polarity_by_magnet_name(magnet_name),
+        polarity=get_polarity_by_magnet_name(magnet_name) * plane_sign,
     )
 
+    magnet_info = copy.copy(magnet_info)
+    tmp = angle_to_offset(
+        magnet_info, np.array([equivalent_angle.value, equivalent_angle.std])
+    )
+    offset = FitResult(value=tmp[0], std=tmp[1])
+    return EstimatedAngleForPlane(
+        orbit=orbit_for_kick,
+        equivalent_angle=equivalent_angle,
+        bpm_offsets=OrderedDictImpl(
+            zip(
+                measurement_position_names,
+                [FitResult(value=v, std=s) for v, s in zip(p[:n_orb], p_std[:n_orb])],
+            )
+        ),
+        offset=offset,
+        error_estimates=error_estimates,
+    )
+
+
+
+def plot_fit_result(*, measurement, excitations, sorb, magnet_name: str, plane: str):
     # should go to postprocessing
     if magnet_name in [
-        "Q3M1D7R", "Q1M2T7R", "Q1M2D6R", "Q2M2D4R",
-                       "Q5M2T1R", "Q4M1T6R", "Q3M2T4R", ]:
+        "Q3M1D7R", "Q1M2T7R",
+        "Q1M2D6R",
+        "Q2M2D4R",
+        "Q5M2T1R", "Q4M1T6R",
+        "Q3M2T4R",
+    ]:
+    #if False:
         t_pscale = 1e6
         fig, axes = plt.subplots(4, 1, sharex=True)
-        bpm_names = measured_data[0].data.keys()
         ax, ax_orb_diff, ax_diff, ax_off = axes
         # ax, ax_orb_diff = axes
         ax.set_title(f"Quadrupole {magnet_name} plane {plane}")
@@ -329,6 +357,7 @@ def derive_angle(
         # yes hysteresis taken into account
         mref = np.mean([measurement[1, :], measurement[-1, :]], axis=0)
 
+        bpm_names = measured_data[0].data.keys()
         for idx, tmp in enumerate(
             zip(
                 excitations, sorb,
@@ -353,7 +382,7 @@ def derive_angle(
             bpm_names = list(bpm_names)
             bpm_names_p =  bpm_names[:-5] + bpm_names + bpm_names[:5]
             line, = ax.plot(indicesp, dv1p * pscale, ".-", linewidth=0.1, label=label + "(-bpm offset)")
-            ax.plot(indices, scaled_orbit * p[-1] * pscale, "+-.", color=line.get_color(), linewidth=0.1, label=label + "(scaled orbit)")
+            ax.plot(indices, scaled_orbit * p[-1] * pscale, "+", color=line.get_color(), linewidth=0.1, label=label + "(scaled orbit)")
             ax.plot(dv0 * pscale, ".--", color=line.get_color(), linewidth=0.1, label=label + "(-meas ref orb)")
 
             ax_orb_diff.plot(indices, (dv1 - scaled_orbit * p[-1]) * pscale, "x-", color=line.get_color(), linewidth=0.1, label=label + "(scaled orbit)")
@@ -367,33 +396,15 @@ def derive_angle(
         ax_off.plot(p[:-1] * pscale, ".-.", linewidth=0.2, label="bpm offsets (fit)")
         ax_off.set_ylabel(r"orbit (avg) offset x,y [$\mu$m]")
         ax_off.legend()
-        # # fmt:on
+        # fmt:on
         ax_diff.plot((measurement[ 0, :].T - p[:-1]) * pscale, "x-",  linewidth=0.2, label="start measurement")
         ax_diff.plot((measurement[-1, :].T - p[:-1]) * pscale, "+--", linewidth=0.2, label="end measurement"  )
         ax_diff.plot((mref - p[:-1]) * pscale, ".-", linewidth=0.2, label="ref orb. measured"  )
-        ax_off.set_ylabel(r"orbit offset -fit, $\Delta$x, $\Delta$y [$\mu$m]")
+        ax_diff.set_ylabel(r"orbit offset -fit, $\Delta$x, $\Delta$y [$\mu$m]")
         ax_diff.legend()
-        ax_orb_diff.set_xticks(indices)
-        ax_orb_diff.set_xticklabels(bpm_names)
-        plt.setp(ax_off.get_xticklabels(), "horizontalalignment", "right", "verticalalignment", "top", "rotation", 45)
-        # did_plot = True
 
-    magnet_info = copy.copy(magnet_info)
-    if plane == "y":
-        magnet_info.polarity *= -1
-    tmp = angle_to_offset(
-        magnet_info, np.array([equivalent_angle.value, equivalent_angle.std])
-    )
-    offset = FitResult(value=tmp[0], std=tmp[1])
-    return EstimatedAngleForPlane(
-        orbit=orbit_for_kick,
-        equivalent_angle=equivalent_angle,
-        bpm_offsets=OrderedDictImpl(
-            zip(
-                measurement_position_names,
-                [FitResult(value=v, std=s) for v, s in zip(p[:n_orb], p_std[:n_orb])],
-            )
-        ),
-        offset=offset,
-        error_estimates=error_estimates,
-    )
+        ax_last = ax_diff
+        ax_last.set_xticks(indices)
+        ax_last.set_xticklabels(bpm_names)
+        plt.setp(ax_last.get_xticklabels(), "horizontalalignment", "right", "verticalalignment", "top", "rotation", 45)
+        # did_plot = True
