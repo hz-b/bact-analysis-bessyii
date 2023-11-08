@@ -338,7 +338,8 @@ def derive_angle(
 
 
 
-def plot_fit_result(*, measurement, excitations, sorb, magnet_name: str, plane: str):
+def plot_fit_result(*, fit_parameters, measurement, measured_data, excitations, sorb, magnet_name: str, plane: str):
+    p = fit_parameters
     # should go to postprocessing
     if magnet_name in [
         "Q3M1D7R", "Q1M2T7R",
