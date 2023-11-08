@@ -146,7 +146,7 @@ def bpms_raw_data_to_m(
         c = calib_repo.get(bpm_name)
         flag = c.x.active | c.y.active
         if not flag:
-            logger.warning("Ignoring bpm %s", bpm_name)
+            logger.debug("Ignoring bpm %s", bpm_name)
         return flag
 
     bpm_data = [

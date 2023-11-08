@@ -1,3 +1,5 @@
+from matplotlib import pyplot as plt
+
 from bact_analysis_bessyii.bba import app
 import logging
 # logging.basicConfig(level=logging.INFO)
@@ -16,4 +18,9 @@ if __name__ == "__main__":
     # uid = "e60215ff-62ea-4d3b-a968-f6b0d9d9ee9d"
     print(f"Using uid for testing {uid}")
 
-    app.main(uid)
+    try:
+        app.main(uid)
+    except Exception as exc:
+        raise exc
+    finally:
+        plt.show()

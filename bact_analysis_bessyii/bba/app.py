@@ -1,7 +1,6 @@
 import logging
 import os.path
 from dataclasses import asdict
-import functools
 from typing import Sequence
 import tqdm
 import xarray as xr
@@ -9,7 +8,6 @@ from pymongo import MongoClient
 from bact_analysis.transverse.twiss_interpolate import interpolate_twiss
 from bact_analysis.utils.preprocess import rename_doublicates, replace_names
 from bact_analysis_bessyii.bba.preprocess_data import (
-    load_and_rearrange_data,
     load_and_rearrange_data_from_files,
 )
 from bact_analysis_bessyii.model.analysis_model import (
@@ -22,6 +20,7 @@ from bact_analysis_bessyii.model.analysis_util import (
 )
 from bact_analysis_bessyii.model.calc import get_magnet_estimated_angle
 from .bpm_repo import BPMCalibrationsRepositoryBESSYII
+from bact_analysis_bessyii.tools.correct_bpm_naming import measurement_per_magnet_bpm_data_correct_name
 
 logger = logging.getLogger("bact-analysis-bessyii")
 
@@ -78,31 +77,47 @@ def get_magnet_names(preprocessed_measurement):
     ]
 
 
-
-
 calib_repo = BPMCalibrationsRepositoryBESSYII()
 
 
 def main(uid):
     # preprocessed_measurement = load_and_rearrange_data(uid)
     preprocessed_measurement = load_and_rearrange_data_from_files(uid)
+    # correct the bpm names
+    if True:
+        preprocessed_measurement = MeasurementData(
+            measurement=[
+                measurement_per_magnet_bpm_data_correct_name(m)
+                for m in tqdm.tqdm(
+                    preprocessed_measurement.measurement,
+                    total=len(preprocessed_measurement.measurement),
+                    desc="rename bpm raw   ",
+                )
+            ]
+        )
     # convert bpm raw data to processed data
     # currently for debug to see where we are
     # meas = preprocessed_measurement.measurement
-    preprocessed_measurement.measurement = [
-        measurement_per_magnet_bpms_raw_data_to_m(m, calib_repo=calib_repo)
-        for m in tqdm.tqdm(
-            preprocessed_measurement.measurement,
-            total=len(preprocessed_measurement.measurement),
-            desc="conv bpm raw -> m",
-        )
-    ]
+    preprocessed_measurement = MeasurementData(
+        measurement=[
+            measurement_per_magnet_bpms_raw_data_to_m(m, calib_repo=calib_repo)
+            for m in tqdm.tqdm(
+                preprocessed_measurement.measurement,
+                total=len(preprocessed_measurement.measurement),
+                desc="conv bpm raw -> m",
+            )
+        ]
+    )
     # find out which elements were powered by the muxer
     # measurement / BESSY II epics environment uses upper case names
     # model uses lower case
     magnet_names = get_magnet_names(preprocessed_measurement)
     element_names_lc = [name.lower() for name in magnet_names]
-    selected_model = load_model(required_element_names=element_names_lc)
+    selected_model = load_model(
+        required_element_names=element_names_lc,
+        filename="bessyii_twiss_thor_scsi.nc"
+        # filename="bessyii_twiss_thor_scsi_twin_with_wavelength_shifter.nc",
+    )
     # control system uses upper case names ... fix the model here as long as required
     selected_model["pos"] = [name.upper() for name in selected_model.pos.values]
 
@@ -144,7 +159,7 @@ def main(uid):
     estimated_angles_collection = db["estimatedangles"]
 
     # estimated_angle_dict = estimated_angles
-    estimated_angles_dict["uid"] = uid
+    estimated_angles_dict["uid"] = uid # + "-shift"
     # Save the dictionary as a document in the collection
     estimated_angles_collection.insert_one(estimated_angles_dict)
     client.close()
@@ -159,7 +174,7 @@ if __name__ == "__main__":
         print("need one argument! a uid")
         if True:
             uid = "9ba454c7-f709-4c42-84b3-410b5ac05d9d"
-            print(f"Using uid for testing {uid}")
+            print(f"Using uid for testing  {uid}")
         else:
             sys.exit()
     main(uid)

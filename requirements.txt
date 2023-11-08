@@ -6,5 +6,6 @@ scipy
 xarray
 h5netcdf
 pymongo
+jsons
 bact-analysis
 bact-math-utils
