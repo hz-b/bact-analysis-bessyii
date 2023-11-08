@@ -223,8 +223,8 @@ class ErrorEstimates:
         use full name or the abbreviations used in stats?
         provide a value for each excitation?
     """
-    mean_square_error: Sequence
-    mean_absolute_error: Sequence
+    mean_square_error: Sequence[float]
+    mean_absolute_error: Sequence[float]
 
 
 @dataclass
