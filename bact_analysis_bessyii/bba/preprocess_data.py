@@ -94,31 +94,34 @@ def load_and_check_data(dataset, metadata, *, device_name: str = "dt") -> Measur
     return preprocessed_data
 
 @functools.lru_cache
-def load_and_rearrange_data(uid: str, catalog_name: str = "heavy_local", load_all: bool = True):
+def load_and_rearrange_data(uid: str, catalog_name: str = "heavy_local", load_all: bool = True, read_from_file=False):
     """load data using uid and make it selectable per magnet
     Todo:
         Require loading from other formats?
     """
-    try:
-        db = catalog[catalog_name]
-        run = db[uid]
-    except:
-        logger.warning(f'using catalog name {catalog_name} uid {uid}')
-        raise
+    if read_from_file:
+        load_and_rearrange_data_from_files(uid)
+    else:
+        try:
+            db = catalog[catalog_name]
+            run = db[uid]
+        except:
+            logger.warning(f'using catalog name {catalog_name} uid {uid}')
+            raise
 
-    stream = run.primary
-    del run
+        stream = run.primary
+        del run
 
-    ds = stream.to_dask()
-    if load_all:
-        for name, item in tqdm.tqdm(
-                ds.items(),
-                total=len(ds.variables),
-                desc="Loading individual variables",
-        ):
-            item.load()
+        ds = stream.to_dask()
+        if load_all:
+            for name, item in tqdm.tqdm(
+                    ds.items(),
+                    total=len(ds.variables),
+                    desc="Loading individual variables",
+            ):
+                item.load()
 
-    return load_and_check_data(ds, stream.metadata, device_name="bpm")
+        return load_and_check_data(ds, stream.metadata, device_name="bpm")
 
 def load_and_rearrange_data_from_files(uid: str, prefix="bba-measured"):
     import bz2

@@ -179,7 +179,7 @@ class FitReadyDataPerMagnet:
 
 @dataclass
 class FitReadyData:
-    data: Sequence[FitReadyDataPerMagnet]
+    per_magnet: Sequence[FitReadyDataPerMagnet]
 
 
 @dataclass
@@ -228,7 +228,7 @@ class ErrorEstimates:
 
 
 @dataclass
-class EstimatedAngleForPlane:
+class  EstimatedAngleForPlane:
     orbit: DistortedOrbitUsedForKick
     # the angle that is corresponding to this kick
     equivalent_angle: FitResult
@@ -237,6 +237,7 @@ class EstimatedAngleForPlane:
     # or derived offset ... no need to separate it
     offset: FitResult
     error_estimates : ErrorEstimates
+    # fit_ready_data : FitReadyData
 
 
 @dataclass
@@ -245,7 +246,6 @@ class MagnetEstimatedAngles:
     name: str
     x: EstimatedAngleForPlane
     y: EstimatedAngleForPlane
-    # fit_data : FitReadyDataPerMagnet
 
 @dataclass
 class EstimatedAngles:

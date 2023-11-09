@@ -1,5 +1,8 @@
 import functools
 import logging
+
+import numpy as np
+
 from bact_analysis.utils import preprocess
 from bact_analysis_bessyii.model.analysis_model import (
     MeasurementPerMagnet,
@@ -61,10 +64,11 @@ def flatten_for_fit(
         # fmt:on
 
     return FitReadyDataPerMagnet(
-        name=magnet_name,
-        steps=[measurement_point.step for measurement_point in magnet_measurement_data],
+        # can be a string from some numpy / dataframe / xcarray
+        name=str(magnet_name),
+        steps=[int(measurement_point.step) for measurement_point in magnet_measurement_data],
         excitations=[
-            measurement_point.excitation
+            float(measurement_point.excitation)
             for measurement_point in magnet_measurement_data
         ],
         x=x_values,

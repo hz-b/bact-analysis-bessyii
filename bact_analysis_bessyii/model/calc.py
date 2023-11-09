@@ -27,12 +27,11 @@ from typing import Sequence
 # just here for debugging
 import matplotlib.pyplot as plt
 
-
 logger = logging.getLogger("bact-analysis")
 
 
 def calculate_angle_to_offset(
-    tf: float, length: float, polarity: int, alpha: float, tf_scale: float = 1.0
+        tf: float, length: float, polarity: int, alpha: float, tf_scale: float = 1.0
 ) -> float:
     r"""Derive offset from measured specific kick angle
 
@@ -132,49 +131,41 @@ def angle(dist_orb: np.ndarray, meas_orb: np.ndarray) -> (np.ndarray, np.ndarray
 
 
 def get_magnet_estimated_angle(
-    measurement_per_magnet, selected_model, t_theta, pos="pos", rms="rms"
+        fit_ready_data, selected_model, t_theta, pos="pos", rms="rms"
 ) -> MagnetEstimatedAngles:
-    name = measurement_per_magnet.name
+    name = fit_ready_data.name
     return MagnetEstimatedAngles(
         name=name,
         x=get_estimated_angle_for_plane(
-            "x",
-            name,
-            measurement_per_magnet.per_magnet,
+            fit_ready_data,
             selected_model,
-            t_theta,
-            pos=pos,
-            rms=rms,
+            plane="x",
+            theta=t_theta
         ),
         y=get_estimated_angle_for_plane(
-            "y",
-            name,
-            measurement_per_magnet.per_magnet,
+            fit_ready_data,
             selected_model,
-            t_theta,
-            pos=pos,
-            rms=rms,
-        ),
+            plane="y",
+            theta=t_theta
+        )
     )
 
 
-def calculate_offset(
-    angle,
-):
 
+def calculate_offset(
+        angle,
+):
     pass
 
 
 def get_estimated_angle_for_plane(
-    plane,
-    magnet_name,
-    per_magnet_measurement,
-    selected_model,
-    t_theta,
-    *,
-    pos="pos",
-    rms="rms",
+        fit_ready_data,
+        selected_model,
+        *,
+        plane,
+        theta
 ) -> EstimatedAngleForPlane:
+    magnet_name = fit_ready_data.name
     """Function to get estimated angle for a specific plane per magnet"""
     # Calculate distorted orbit based on provided model data
     distorted_orbit = closed_orbit_distortion(
@@ -183,29 +174,29 @@ def get_estimated_angle_for_plane(
         tune=selected_model.mu.sel(plane=plane).values[-1],
         beta_i=selected_model.beta.sel(plane=plane, pos=magnet_name).values,
         mu_i=selected_model.mu.sel(plane=plane, pos=magnet_name).values * 2 * np.pi,
-        theta_i=t_theta,
+        theta_i=theta,
     )
     # one magnet one plane
     kick = DistortedOrbitUsedForKick(
-        kick_strength=t_theta,
+        kick_strength=theta,
         delta=OrderedDictImpl(
             zip(selected_model.coords["pos"].values, distorted_orbit)
         ),
     )
     # Prepare measured data and perform fitting
-    flattened = flatten_for_fit(per_magnet_measurement, magnet_name, pos=pos, rms=rms)
+    # flattened = flatten_for_fit(per_magnet_measurement, magnet_name, pos=pos, rms=rms)
     # return an object of EstimatedAngleForPlane
     return derive_angle(
-        kick, getattr(flattened, plane), flattened.excitations, plane, magnet_name
+        kick, getattr(fit_ready_data, plane), fit_ready_data.excitations, plane, fit_ready_data.name
     )
 
 
 def derive_angle(
-    orbit_for_kick: DistortedOrbitUsedForKick,
-    measured_data: Sequence[MeasuredValues],
-    excitations: np.ndarray,
-    plane,
-    magnet_name,
+        orbit_for_kick: DistortedOrbitUsedForKick,
+        measured_data: Sequence[MeasuredValues],
+        excitations: np.ndarray,
+        plane,
+        magnet_name,
 ) -> EstimatedAngleForPlane:
     """Kicker angle derived from expected orbit, excitation and distortion measurements
 
@@ -310,7 +301,7 @@ def derive_angle(
     )
 
     # quadrupoles: by convention +K for horizontal -K for vertical plane
-    plane_sign = dict(x=1,y=-1)[plane]
+    plane_sign = dict(x=1, y=-1)[plane]
     magnet_info = MagnetInfo(
         length=get_length_by_magnet_name(magnet_name),
         # nearly the same for all ... to be looked up
@@ -322,7 +313,7 @@ def derive_angle(
     tmp = angle_to_offset(
         magnet_info, np.array([equivalent_angle.value, equivalent_angle.std])
     )
-    offset = FitResult(value=tmp[0], std=tmp[1])
+    offset = FitResult(value=float(tmp[0]), std=float(tmp[1]))
     return EstimatedAngleForPlane(
         orbit=orbit_for_kick,
         equivalent_angle=equivalent_angle,
@@ -333,9 +324,8 @@ def derive_angle(
             )
         ),
         offset=offset,
-        error_estimates=error_estimates,
+        error_estimates=error_estimates
     )
-
 
 
 def plot_fit_result(*, fit_parameters, measurement, measured_data, excitations, sorb, magnet_name: str, plane: str):
@@ -348,7 +338,7 @@ def plot_fit_result(*, fit_parameters, measurement, measured_data, excitations, 
         "Q5M2T1R", "Q4M1T6R",
         "Q3M2T4R",
     ]:
-    #if False:
+        # if False:
         t_pscale = 1e6
         fig, axes = plt.subplots(4, 1, sharex=True)
         ax, ax_orb_diff, ax_diff, ax_off = axes
@@ -360,11 +350,11 @@ def plot_fit_result(*, fit_parameters, measurement, measured_data, excitations, 
 
         bpm_names = measured_data[0].data.keys()
         for idx, tmp in enumerate(
-            zip(
-                excitations, sorb,
-                (measurement.T - p[:-1][:, np.newaxis]).T,
-                (measurement.T - mref[np.newaxis,:].T).T,
-            )
+                zip(
+                    excitations, sorb,
+                    (measurement.T - p[:-1][:, np.newaxis]).T,
+                    (measurement.T - mref[np.newaxis, :].T).T,
+                )
         ):
             excitation, scaled_orbit, dv0, dv1 = tmp
             del tmp
@@ -381,26 +371,28 @@ def plot_fit_result(*, fit_parameters, measurement, measured_data, excitations, 
             indicesp = np.arange(-5, len(dv1) + 5)
             indices = np.arange(len(dv1))
             bpm_names = list(bpm_names)
-            bpm_names_p =  bpm_names[:-5] + bpm_names + bpm_names[:5]
+            bpm_names_p = bpm_names[:-5] + bpm_names + bpm_names[:5]
             line, = ax.plot(indicesp, dv1p * pscale, ".-", linewidth=0.1, label=label + "(-bpm offset)")
-            ax.plot(indices, scaled_orbit * p[-1] * pscale, "+", color=line.get_color(), linewidth=0.1, label=label + "(scaled orbit)")
+            ax.plot(indices, scaled_orbit * p[-1] * pscale, "+", color=line.get_color(), linewidth=0.1,
+                    label=label + "(scaled orbit)")
             ax.plot(dv0 * pscale, ".--", color=line.get_color(), linewidth=0.1, label=label + "(-meas ref orb)")
 
-            ax_orb_diff.plot(indices, (dv1 - scaled_orbit * p[-1]) * pscale, "x-", color=line.get_color(), linewidth=0.1, label=label + "(scaled orbit)")
+            ax_orb_diff.plot(indices, (dv1 - scaled_orbit * p[-1]) * pscale, "x-", color=line.get_color(),
+                             linewidth=0.1, label=label + "(scaled orbit)")
 
         ax.set_ylabel(r"dev $\Delta x$, $\Delta y$ [$\mu$m]")
         ax.legend()
 
-        ax_off.plot(measurement[ 0, :].T * pscale, "x-",  linewidth=0.2, label="start measurement")
-        ax_off.plot(measurement[-1, :].T * pscale, "+--", linewidth=0.2, label="end measurement"  )
-        ax_off.plot(mref * pscale, "+--", linewidth=0.2, label="ref. orb. measured"  )
+        ax_off.plot(measurement[0, :].T * pscale, "x-", linewidth=0.2, label="start measurement")
+        ax_off.plot(measurement[-1, :].T * pscale, "+--", linewidth=0.2, label="end measurement")
+        ax_off.plot(mref * pscale, "+--", linewidth=0.2, label="ref. orb. measured")
         ax_off.plot(p[:-1] * pscale, ".-.", linewidth=0.2, label="bpm offsets (fit)")
         ax_off.set_ylabel(r"orbit (avg) offset x,y [$\mu$m]")
         ax_off.legend()
         # fmt:on
-        ax_diff.plot((measurement[ 0, :].T - p[:-1]) * pscale, "x-",  linewidth=0.2, label="start measurement")
-        ax_diff.plot((measurement[-1, :].T - p[:-1]) * pscale, "+--", linewidth=0.2, label="end measurement"  )
-        ax_diff.plot((mref - p[:-1]) * pscale, ".-", linewidth=0.2, label="ref orb. measured"  )
+        ax_diff.plot((measurement[0, :].T - p[:-1]) * pscale, "x-", linewidth=0.2, label="start measurement")
+        ax_diff.plot((measurement[-1, :].T - p[:-1]) * pscale, "+--", linewidth=0.2, label="end measurement")
+        ax_diff.plot((mref - p[:-1]) * pscale, ".-", linewidth=0.2, label="ref orb. measured")
         ax_diff.set_ylabel(r"orbit offset -fit, $\Delta$x, $\Delta$y [$\mu$m]")
         ax_diff.legend()
 
