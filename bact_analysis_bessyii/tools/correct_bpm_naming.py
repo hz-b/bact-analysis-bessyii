@@ -5,7 +5,7 @@ import functools
 
 @functools.lru_cache(maxsize=None)
 def bpm_config():
-    from bact2.ophyd.devices.process.bpm_parameters import create_bpm_config
+    from bact_bessyii_ophyd.devices.pp.bpm_parameters import create_bpm_config
     import pandas as pd
 
     df = pd.DataFrame(create_bpm_config())
