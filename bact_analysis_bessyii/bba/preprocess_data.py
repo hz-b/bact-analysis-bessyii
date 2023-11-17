@@ -5,8 +5,10 @@ from databroker import catalog
 
 from bact_analysis.utils import preprocess
 import tqdm
-from bact_analysis_bessyii.model.analysis_model import  MeasurementData
+from bact_analysis_bessyii.model.analysis_model import MeasurementData
 from bact_analysis_bessyii.model.analysis_util import get_measurement_per_magnet
+import xarray as xr
+
 #: variables with bpm names
 bpm_variables = (
     "bpm_elem_data",
@@ -14,6 +16,7 @@ bpm_variables = (
 )
 
 logger = logging.getLogger("bact-analysis")
+
 
 def replaceable_dims_bpm(dataset, variable_names=bpm_variables, **kwargs) -> list:
     """replace names that are typically used by the BESSY II device"""
@@ -42,7 +45,10 @@ def configuration(metadata, *, device_name: str = "dt") -> dict:
     dev_con = configuration[device_name]
     return dev_con
 
-def load_and_check_data(dataset, metadata, *, device_name: str = "dt") -> MeasurementData:
+
+def load_and_check_data(
+    dataset, metadata, *, device_name: str = "dt"
+) -> MeasurementData:
     """Loads run data and renames dimensons containing bpm data
 
     Loads beam position monitor data and configuration data
@@ -61,9 +67,7 @@ def load_and_check_data(dataset, metadata, *, device_name: str = "dt") -> Measur
     # Quite a view variables contain bpm waveforme data. Preparation for
     # replacing the names with bpm names
     bpm_names = config["data"]["bpm_names"]
-    bpm_dims = replaceable_dims_bpm(
-         dataset, prefix="", expected_length=len(bpm_names)
-    )
+    bpm_dims = replaceable_dims_bpm(dataset, prefix="", expected_length=len(bpm_names))
     # Find out: repetition of measurement at this stage
     muxer_pc_current_change = preprocess.enumerate_changed_value(
         dataset.mux_power_converter_setpoint
@@ -88,53 +92,68 @@ def load_and_check_data(dataset, metadata, *, device_name: str = "dt") -> Measur
     # data for one magnet
     # iterate over all magnets instead of hard coded one
     preprocessed_data = MeasurementData(
-        measurement = [ get_measurement_per_magnet(all_data__.isel(time=all_data__.mux_selected_multiplexer_readback == name)) for name in set(all_data__.mux_selected_multiplexer_readback.values) ]
+        measurement=[
+            get_measurement_per_magnet(
+                all_data__.isel(
+                    time=all_data__.mux_selected_multiplexer_readback == name
+                )
+            )
+            for name in set(all_data__.mux_selected_multiplexer_readback.values)
+        ]
     )
     # flatten = flatten_for_fit(preprocessed_data.measurement[0])
     return preprocessed_data
 
+
+def data_md_from_files(uid, prefix="bba-measured") -> (xr.Dataset, dict):
+    import bz2
+    import json
+
+    filename = f"{prefix}-{uid}-metadata.json.bz2"
+    with bz2.open(filename, "rt") as fp:
+        metadata = json.load(fp)
+    filename = f"{prefix}-{uid}-raw-data.json.bz2"
+    with bz2.open(filename, "rt") as fp:
+        ds = xr.Dataset.from_dict(json.load(fp))
+    return ds, metadata
+
+
+def data_md_from_db(
+    uid, catalog_name: str = "heavy_local", load_all: bool = True
+) -> (xr.Dataset, dict):
+    try:
+        db = catalog[catalog_name]
+        run = db[uid]
+    except:
+        logger.warning(f"using catalog name {catalog_name} uid {uid}")
+        raise
+
+    stream = run.primary
+    del run
+
+    ds = stream.to_dask()
+    if load_all:
+        for name, item in tqdm.tqdm(
+            ds.items(),
+            total=len(ds.variables),
+            desc="Loading individual variables",
+        ):
+            item.load()
+    return ds, stream.metadata
+
+
 @functools.lru_cache
-def load_and_rearrange_data(uid: str, catalog_name: str = "heavy_local", load_all: bool = True, read_from_file=False):
+def load_and_rearrange_data(uid: str, read_from_file=False, **kwargs):
     """load data using uid and make it selectable per magnet
     Todo:
         Require loading from other formats?
     """
     if read_from_file:
-        load_and_rearrange_data_from_files(uid)
+        ds, metadata = data_md_from_files(uid)
     else:
-        try:
-            db = catalog[catalog_name]
-            run = db[uid]
-        except:
-            logger.warning(f'using catalog name {catalog_name} uid {uid}')
-            raise
-
-        stream = run.primary
-        del run
-
-        ds = stream.to_dask()
-        if load_all:
-            for name, item in tqdm.tqdm(
-                    ds.items(),
-                    total=len(ds.variables),
-                    desc="Loading individual variables",
-            ):
-                item.load()
-
-        return load_and_check_data(ds, stream.metadata, device_name="bpm")
-
-def load_and_rearrange_data_from_files(uid: str, prefix="bba-measured"):
-    import bz2
-    import json
-    import xarray as xr
-
-    filename = f"{prefix}-{uid}-metadata.json.bz2"
-    with bz2.open(filename, 'rt') as fp:
-        metadata = json.load(fp)
-    filename = f"{prefix}-{uid}-raw-data.json.bz2"
-    with bz2.open(filename, 'rt') as fp:
-        ds = xr.Dataset.from_dict(json.load(fp))
+        ds, metadata = data_md_from_files(uid, **kwargs)
 
     return load_and_check_data(ds, metadata, device_name="bpm")
+
 
 __all__ = ["replaceable_dims_bpm", "load_and_check_data", "load_and_rearrange_data"]
