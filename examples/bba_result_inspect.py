@@ -1,3 +1,4 @@
+import bz2
 import logging
 
 from pymongo import MongoClient
@@ -30,6 +31,10 @@ def overview_dataframe(estimated_angles: ErrorEstimates) -> pd.DataFrame:
             est_for_mag.x.offset.std,
             est_for_mag.y.offset.value,
             est_for_mag.y.offset.std,
+            est_for_mag.x.equivalent_angle.value,
+            est_for_mag.x.equivalent_angle.std,
+            est_for_mag.y.equivalent_angle.value,
+            est_for_mag.y.equivalent_angle.std,
         )
         + post_process(est_for_mag.x.error_estimates)
         + post_process(est_for_mag.y.error_estimates)
@@ -39,7 +44,13 @@ def overview_dataframe(estimated_angles: ErrorEstimates) -> pd.DataFrame:
 
     df = pd.DataFrame(
         data,
-        index=["x_o", "x_std", "y_o", "y_std", "x_mae", "x_mse", "y_mae", "y_mse", "s"],
+        # fmt: off
+        index= [
+            "x_o", "x_o_std", "y_o", "y_o_std",
+            "x_a", "x_a_std", "y_a", "y_a_std",
+            "x_mae", "x_mse", "y_mae", "y_mse", "s"
+        ],
+        # fmt: on
     ).T
     return df
 
@@ -55,8 +66,8 @@ def plot_overview_dataframe(df: pd.DataFrame):
     fig, axes = plt.subplots(4, 1, sharex=True)
     ax, ax_mse, ax_mae, ax_ratio = axes
 
-    ax.errorbar(df.index, df.x_o, yerr=df.x_std, fmt="+-", label="x o")
-    ax.errorbar(df.index, df.y_o, yerr=df.y_std, fmt="x--", label="y o")
+    ax.errorbar(df.index, df.x_o, yerr=df.x_o_std, fmt="+-", label="x o")
+    ax.errorbar(df.index, df.y_o, yerr=df.y_o_std, fmt="x--", label="y o")
     ax.set_ylabel("x,y [mm]")
 
     ax_mse.plot(df.x_mse, "+-", label="x mse")
@@ -79,7 +90,6 @@ def plot_overview_dataframe(df: pd.DataFrame):
     plt.setp(ax_ratio.xaxis.get_ticklabels(), "rotation", 45)
     del axes, ax, ax_mse, ax_mae, ax_ratio
 
-
     # And now the hack to add peter's data
     dfp = pd.read_csv("23102501.ERG", delimiter=",", header=0)
     dfp.columns = ["index", "quad_name", "s", "x_o", "x_std", "y_o", "y_std"]
@@ -90,27 +100,31 @@ def plot_overview_dataframe(df: pd.DataFrame):
     ax, ax_diff = axes
     df = df.loc[dfp.index, :]
     # copy s position
-    for name in dfp.index: df.loc[name, 's'] = dfp.loc[name, 's']
+    for name in dfp.index:
+        df.loc[name, "s"] = dfp.loc[name, "s"]
     df = df.sort_values(by="s")
 
     for ref, chk in zip(df.index, dfp.index):
         if ref != chk:
             logger.warning(f"quad names do not match {ref} != {chk}")
 
-
-    ax.plot(dfp.s, '-', df.s, '-')
-    ax_diff.plot(dfp.s.index, df.s.values - dfp.s.values)
+    ax.plot(dfp.s, "-", df.s, "-")
+    ax_diff.plot(dfp.s.values, df.s.values - dfp.s.values)
     ax_diff.set_xticks(np.arange(len(dfp.index)))
     ax_diff.set_xticklabels(dfp.index)
-    plt.setp(ax_diff.xaxis.get_ticklabels(),
-             "horizontalalignment", "right",
-             "verticalalignment", "top",
-             "rotation", 45
-             )
+    plt.setp(
+        ax_diff.xaxis.get_ticklabels(),
+        "horizontalalignment",
+        "right",
+        "verticalalignment",
+        "top",
+        "rotation",
+        45,
+    )
 
     del axes, ax, ax_diff
 
-    cooking_factor = 1/2.0
+    cooking_factor = 1 / 2.0
 
     fig, axes = plt.subplots(3, 1, sharex=True)
     ax_x, ax_y, ax_ratio = axes
@@ -123,23 +137,27 @@ def plot_overview_dataframe(df: pd.DataFrame):
     # plt.setp(ax_y.get_xticklabels(), )
     # plt.setp(ax_y.get_xticklabels(), )
 
-    ax_x.errorbar(df.s, -df.x_o * cooking_factor, yerr=df.x_std, fmt="+-", label="$x_o$")
-    ax_y.errorbar(df.s,  df.y_o * cooking_factor, yerr=df.y_std, fmt="+-", label="$y_o$")
+    ax_x.errorbar(df.s, -df.x_o * cooking_factor, yerr=df.x_o_std, fmt="+-", label="$x_o$")
+    ax_y.errorbar(df.s,  df.y_o * cooking_factor, yerr=df.y_o_std, fmt="+-", label="$y_o$")
     # fmt: on
     idx = df.x_o.abs() > 0.3
-    ax_ratio.plot(df.s[idx], df.x_o[idx] / dfp.x_o[idx],  label="$x_o$")
+    ax_ratio.plot(df.s[idx].values, (df.x_o[idx] / dfp.x_o[idx]).values, label="$x_o$")
     idx = df.y_o.abs() > 0.3
-    ax_ratio.plot(df.s[idx], df.y_o[idx] / dfp.y_o[idx],  label="$y_o$")
+    ax_ratio.plot(df.s[idx].values, (df.y_o[idx] / dfp.y_o[idx]).values, label="$y_o$")
 
     for ax in ax_x, ax_y:
         ax.set_ylabel("x,y [mm]")
         ax.legend()
 
-    plt.setp(ax_ratio.xaxis.get_ticklabels(),
-             "horizontalalignment", "right",
-             "verticalalignment", "top",
-             "rotation", 45
-             )
+    plt.setp(
+        ax_ratio.xaxis.get_ticklabels(),
+        "horizontalalignment",
+        "right",
+        "verticalalignment",
+        "top",
+        "rotation",
+        45,
+    )
 
     # Debug plots
     df = df.sort_index()
@@ -157,20 +175,23 @@ def plot_overview_dataframe(df: pd.DataFrame):
     ax_y.plot( df.y_o * cooking_factor, marker="+", label="$y_o$")
     # fmt: on
     idx = df.x_o.abs() > 0.3
-    ax_ratio.plot(df.x_o[idx] / dfp.x_o[idx], '+', label="$x_o$")
+    ax_ratio.plot(df.x_o[idx] / dfp.x_o[idx], "+", label="$x_o$")
     idx = df.y_o.abs() > 0.3
-    ax_ratio.plot(df.y_o[idx] / dfp.y_o[idx], '+', label="$y_o$")
+    ax_ratio.plot(df.y_o[idx] / dfp.y_o[idx], "+", label="$y_o$")
 
     for ax in ax_x, ax_y:
         ax.set_ylabel("x,y [mm]")
         ax.legend()
 
-    plt.setp(ax_ratio.xaxis.get_ticklabels(),
-             "horizontalalignment", "right",
-             "verticalalignment", "top",
-             "rotation", 45
-             )
-
+    plt.setp(
+        ax_ratio.xaxis.get_ticklabels(),
+        "horizontalalignment",
+        "right",
+        "verticalalignment",
+        "top",
+        "rotation",
+        45,
+    )
 
 
 def main(uid):
@@ -178,7 +199,10 @@ def main(uid):
     db = client["bessyii"]
     estimated_angles_collection = db["estimatedangles"]
 
+    # print(estimated_angles_collection)
+    print(uid)
     d = estimated_angles_collection.find_one(dict(uid=uid))
+    assert d
     estimated_angles = EstimatedAngles(
         per_magnet=[jsons.load(m, MagnetEstimatedAngles) for m in d["per_magnet"]],
         md=d["md"],
@@ -191,5 +215,10 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     prog_name, uid = sys.argv
-    plot_overview_dataframe(main(uid))
+    df = main(uid)
+    filename = f"overview_data_frame_{uid}.json.bz2"
+    print(f"Saving overview dataframe to {filename}")
+    with bz2.open(filename, "w") as fp:
+        df.to_json(fp, indent=4)
+    plot_overview_dataframe(df)
     plt.show()
