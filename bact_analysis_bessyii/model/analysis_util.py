@@ -4,14 +4,16 @@ import logging
 import numpy as np
 
 from bact_analysis.utils import preprocess
+from bact_device_models.filters.bpm_calibration import (
+    BPMCalibration,
+    BPMCalibrationPlane,
+)
 from bact_analysis_bessyii.model.analysis_model import (
     MeasurementPerMagnet,
     MeasurementPoint,
     FitReadyDataPerMagnet,
     MeasuredItem,
     MeasuredValues,
-    BPMCalibration,
-    BPMCalibrationPlane,
 )
 from typing import List, Sequence, Dict
 from collections import OrderedDict as OrderedDictmpl
@@ -66,7 +68,9 @@ def flatten_for_fit(
     return FitReadyDataPerMagnet(
         # can be a string from some numpy / dataframe / xcarray
         name=str(magnet_name),
-        steps=[int(measurement_point.step) for measurement_point in magnet_measurement_data],
+        steps=[
+            int(measurement_point.step) for measurement_point in magnet_measurement_data
+        ],
         excitations=[
             float(measurement_point.excitation)
             for measurement_point in magnet_measurement_data
