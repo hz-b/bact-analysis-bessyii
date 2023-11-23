@@ -1,10 +1,11 @@
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Sequence, OrderedDict
+from typing import Sequence, OrderedDict, Optional
 
 import numpy as np
 
-from bact_bessyii_ophyd.devices.pp.bpmElem import BpmElem
+from bact_device_models.devices.bpm_elem import BpmElem
+# from bact_bessyii_ophyd.devices.pp.bpmElem import BpmElem
 
 # corresponding data array to offset data
 # res = xr.DataArray(
@@ -51,9 +52,9 @@ class OffsetData:
     The result a None if not available (e.g. failed fit or measurement)
     """
     # or better horizontal ?
-    x: OffsetFitResult | None
+    x: Optional[OffsetFitResult]
     # or better vertical ?
-    y: OffsetFitResult | None
+    y: Optional[OffsetFitResult]
     # name of the magnet the data has been calculated for
     name: str
 
@@ -165,8 +166,8 @@ class FitReadyDataPerMagnet:
     # excitation that was applied to the magnet (typically
     # the current of the muxer power converter)
     excitations: np.ndarray
-    x: Sequence[MeasuredValues] | None
-    y: Sequence[MeasuredValues] | None
+    x: Optional[Sequence[MeasuredValues]]
+    y: Optional[Sequence[MeasuredValues]]
 
     # I don't recall if these are the names of the beam position monitors
     # or their position. If their position these are used for plotting
@@ -251,4 +252,4 @@ class MagnetEstimatedAngles:
 class EstimatedAngles:
     per_magnet: OrderedDict[str, MagnetEstimatedAngles]
     # metadata
-    md: object | None
+    md: Optional[object]
