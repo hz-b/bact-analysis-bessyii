@@ -2,11 +2,8 @@ import logging
 import os.path
 from dataclasses import asdict
 from typing import Sequence
-
 import tqdm
 import xarray as xr
-from pymongo import MongoClient
-
 from bact_analysis.transverse.twiss_interpolate import interpolate_twiss
 from bact_analysis.utils.preprocess import rename_doublicates, replace_names
 from bact_analysis_bessyii.bba.preprocess_data import (load_and_rearrange_data_from_files, load_and_rearrange_data, )
@@ -15,6 +12,7 @@ from bact_analysis_bessyii.model.analysis_model import (MeasurementData, Measure
 from bact_analysis_bessyii.model.analysis_util import (measurement_per_magnet_bpms_raw_data_to_m, flatten_for_fit, )
 from bact_analysis_bessyii.model.calc import get_magnet_estimated_angle
 from bact_analysis_bessyii.tools.correct_bpm_naming import measurement_per_magnet_bpm_data_correct_name
+from bact_bessyii_mls_ophyd.db.mongo_repository import InitializeMongo
 from .bpm_repo import BPMCalibrationsRepositoryBESSYII
 
 logger = logging.getLogger("bact-analysis-bessyii")
@@ -22,7 +20,6 @@ logger = logging.getLogger("bact-analysis-bessyii")
 
 def load_model(required_element_names: Sequence[str], filename: str = "bessyii_twiss_thor_scsi_from_twin.nc",
                datadir: str = None, ) -> Sequence[MeasurementData]:
-    """ """
     if datadir is None:
         datadir = os.path.dirname(__file__)
     path = os.path.join(datadir, filename)
@@ -110,11 +107,11 @@ def main(uid):
     estimated_angles_dict = asdict(estimated_angles)
     fit_ready_data_dict = asdict(fit_ready_data)
     print("estimated angle calculated")
-    # MongoClient("mongodb://mongodb.bessy.de:27017/")
-    client = MongoClient("mongodb://127.0.0.1:27017/")  # Replace with your MongoDB connection string
-    db = client["bessyii"]  # Replace "mydatabase" with your desired database name
-    estimated_angles_collection = db["estimatedangles"]
-    fit_read_data_collection = db["fitreadydata"]
+    # Create a InitializeMongo instance
+    mongo_init = InitializeMongo()
+    # Get the collection you need
+    estimated_angles_collection = mongo_init.get_collection("estimatedangles")
+    fit_read_data_collection = mongo_init.get_collection("fitreadydata")
 
     # estimated_angle_dict = estimated_angles
     estimated_angles_dict["uid"] = uid  # + "-shift"
@@ -122,7 +119,7 @@ def main(uid):
     # Save the dictionary as a document in the collection
     estimated_angles_collection.insert_one(estimated_angles_dict)
     fit_read_data_collection.insert_one(fit_ready_data_dict)
-    client.close()
+    mongo_init.close_connection()
 
 
 if __name__ == "__main__":

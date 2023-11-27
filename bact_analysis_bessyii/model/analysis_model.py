@@ -4,7 +4,7 @@ from typing import Sequence, OrderedDict
 
 import numpy as np
 
-from bact_bessyii_ophyd.devices.pp.bpmElem import BpmElem
+from bact_device_models.devices.bpm_elem import BpmElem
 
 # corresponding data array to offset data
 # res = xr.DataArray(
