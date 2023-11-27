@@ -56,8 +56,8 @@ calib_repo = BPMCalibrationsRepositoryBESSYII()
 
 
 def main(uid):
-    #preprocessed_measurement = load_and_rearrange_data )
-    preprocessed_measurement = load_and_rearrange_data_from_files(uid)
+    preprocessed_measurement = load_and_rearrange_data(uid )
+    # preprocessed_measurement = load_and_rearrange_data_from_files(uid)
     # correct the bpm names
     if True:
         preprocessed_measurement = MeasurementData(
