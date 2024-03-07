@@ -22,11 +22,11 @@ logger = logging.getLogger("bact-analysis")
 
 def get_measurement_per_magnet(data_for_one_magnet):
     # todo: validate that setpoint and readback are within limits
-    (name,) = set(data_for_one_magnet.mux_selected_multiplexer_readback.values)
+    (name,) = set(data_for_one_magnet["mux_sel_selected"].values)
 
     muxer_or_pc_current_change = preprocess.enumerate_changed_value_pairs(
-        data_for_one_magnet.mux_power_converter_setpoint,
-        data_for_one_magnet.mux_selected_multiplexer_readback,
+        data_for_one_magnet["mux_sel_p_setpoint"],
+        data_for_one_magnet["mux_sel_selected"],
     )
 
     return MeasurementPerMagnet(
@@ -81,7 +81,8 @@ def get_measurement_point(magnet_data_per_point, *, step):
     # extact bpm x and y from the data into an array
     return MeasurementPoint(
         step=step,
-        excitation=float(magnet_data_per_point.mux_power_converter_setpoint.values),
+        #: Todo pseudo or real / engineering units
+        excitation=float(magnet_data_per_point["mux_sel_r_setpoint"].values),
         bpm=magnet_data_per_point.bpm_elem_data.values,
     )
 
