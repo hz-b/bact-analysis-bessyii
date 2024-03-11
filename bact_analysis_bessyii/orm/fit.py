@@ -5,18 +5,18 @@ import numpy as np
 from scipy.linalg import lstsq
 
 from bact_math_utils.linear_fit import x_to_cov, cov_to_std
-from .model import FitResultPerBPM, FitResultPerMagnet, FitResultAllMagnets
+from .model import FitResultPerBPM, FitResultPerMagnet, FitResultAllMagnets, FitResultBPMPlane
 from ..model.analysis_model import (
     FitResult,
     MeasuredValues,
     FitReadyDataPerMagnet,
-    FitReadyData,
+    FitReadyData, MeasuredItem,
 )
 
 
-def get_response_one_magnet_one_bpm(
-    measured_values, excitations: Sequence[float]
-) -> FitResultPerBPM:
+def get_response_one_magnet_one_bpm_one_plane(
+    measured_values: Sequence[MeasuredItem], excitations: Sequence[float]
+) -> FitResultBPMPlane:
     """
 
     Todo:
@@ -44,39 +44,48 @@ def get_response_one_magnet_one_bpm(
     cov = x_to_cov(A, fitres[1], N, p)
     std = cov_to_std(cov)
 
-    return FitResultPerBPM(
+    return FitResultBPMPlane(
         slope=FitResult(value=fitres[0][0], std=std[0]),
         offset=FitResult(value=fitres[0][1], std=std[1]),
     )
 
 
-def get_response_one_magnet_plane(
-    measured_values: Sequence[MeasuredValues],
-    excitations: Sequence[float],
-) -> Dict[str, FitResultPerBPM]:
+def get_response_one_magnet_one_bpm(
+    x: Sequence[MeasuredItem],  y: Sequence[MeasuredItem], excitations: Sequence[float], bpm_name:str
+) -> FitResultPerBPM:
     """
+    Args:
+        measured_values:
+        excitations:
 
-    Todo: review if all are fitted at once
+    Returns:
+
     """
-    return {
-        bpm_name: get_response_one_magnet_one_bpm(
-            [m.data[bpm_name] for m in measured_values], excitations
+    return FitResultPerBPM(
+        x=get_response_one_magnet_one_bpm_one_plane(x, excitations),
+        y=get_response_one_magnet_one_bpm_one_plane(y, excitations),
+        name=bpm_name
+    )
+
+
+
+def get_response_one_magnet(fit_ready_data: FitReadyDataPerMagnet) -> FitResultPerMagnet:
+    return FitResultPerMagnet(data=[
+        get_response_one_magnet_one_bpm(
+            # for all e
+            x=[datum.data[bpm_name] for datum in fit_ready_data.x],
+            y=[datum.data[bpm_name] for datum in fit_ready_data.y],
+            excitations=fit_ready_data.excitations,
+            bpm_name=bpm_name
         )
-        for bpm_name in measured_values[0].data.keys()
-    }
-
-
-def get_response_one_magnet(fit_ready_data: FitReadyDataPerMagnet):
-    return FitResultPerMagnet(
-        x=get_response_one_magnet_plane(fit_ready_data.x, fit_ready_data.excitations),
-        y=get_response_one_magnet_plane(fit_ready_data.y, fit_ready_data.excitations),
+        for bpm_name in fit_ready_data.x[0].data],
+        name=fit_ready_data.name
     )
 
 
 def get_response(fit_ready_data: FitReadyData):
-    return FitResultAllMagnets(
-        data={
-            item.name: get_response_one_magnet(item)
-            for item in fit_ready_data.per_magnet
-        }
+    r =  FitResultAllMagnets(
+        data=[get_response_one_magnet(item)
+            for item in fit_ready_data.per_magnet]
     )
+    return r

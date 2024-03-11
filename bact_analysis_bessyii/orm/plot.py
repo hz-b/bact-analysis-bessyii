@@ -27,15 +27,22 @@ class OrbitResponseSteeres:
 
 
 def extract_matrix(data, magnet_names) -> OrbitResponseBPMs:
+    def extract(datum):
+        r, = datum
+        return r
+    arranged_along_magnets = [
+        extract([datum for datum in data.data if datum.name == name]) for name in magnet_names
+    ]
+
     return OrbitResponseBPMs(
         x=OrbitResponseSubmatrix(
-            slope=np.array([[d.slope.value for _, d in data.data[name].x.items()] for name in magnet_names]),
-            offset=np.array([[d.slope.value for _, d in data.data[name].x.items()] for name in magnet_names]),
+            slope=np.array([[datum.x.slope.value for datum in row.data] for row in arranged_along_magnets]),
+            offset=np.array([[datum.x.slope.value for datum in row.data] for row in arranged_along_magnets])
         ),
         y=OrbitResponseSubmatrix(
-            slope=np.array([[d.slope.value for _, d in data.data[name].y.items()] for name in magnet_names]),
-            offset=np.array([[d.slope.value for _, d in data.data[name].y.items()] for name in magnet_names]),
-        )
+            slope=np.array([[datum.x.slope.value for datum in row.data] for row in arranged_along_magnets]),
+            offset=np.array([[datum.x.slope.value for datum in row.data] for row in arranged_along_magnets])
+        ),
     )
 
 
@@ -49,14 +56,14 @@ def plot_one_orm(axis, orm, steerer_names: Sequence[str], bpm_names: Sequence[st
     return surf
 
 def plot_orm(data: FitResultAllMagnets):
-    horizontal_steerer_names = [name for name in data.data.keys() if name[0] == "H"]
-    vertical_steerer_names = [name for name in data.data.keys() if name[0] == "V"]
+    horizontal_steerer_names = [datum.name for datum in data.data if datum.name[0] == "H"]
+    vertical_steerer_names = [datum.name for datum in data.data if datum.name[0] == "V"]
 
     # for the time being I assume that all bpm's are available in any data set
     # this prerequiste has not been before, up to now it should be able to get away
     # with missing data
     # Todo: handle that not all bpm#s are in all data sets
-    bpm_names = list(data.data[next(iter(data.data))].x.keys())
+    bpm_names = [datum.name for datum in data.data[0].data]
     matrices_horizontal_steerers = extract_matrix(data, horizontal_steerer_names)
     matrices_vertical_steerers = extract_matrix(data, vertical_steerer_names)
 
