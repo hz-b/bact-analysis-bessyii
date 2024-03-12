@@ -19,36 +19,30 @@ def extract_matrix(data, magnet_names) -> OrbitResponseBPMs:
         for name in magnet_names
     ]
 
+    # fmt: off
     return OrbitResponseBPMs(
         x=OrbitResponseSubmatrix(
-            slope=np.array(
-                [
-                    [datum.x.slope.value for datum in row.data]
-                    for row in arranged_along_magnets
-                ]
-            ),
-            offset=np.array(
-                [
-                    [datum.x.offset.value for datum in row.data]
-                    for row in arranged_along_magnets
-                ]
-            ),
+            slope=np.array([
+                [datum.x.slope.value for datum in row.data]
+                for row in arranged_along_magnets
+            ]),
+            offset=np.array([
+                [datum.x.offset.value for datum in row.data]
+                for row in arranged_along_magnets
+            ]),
         ),
         y=OrbitResponseSubmatrix(
-            slope=np.array(
-                [
-                    [datum.y.slope.value for datum in row.data]
-                    for row in arranged_along_magnets
-                ]
-            ),
-            offset=np.array(
-                [
-                    [datum.y.offset.value for datum in row.data]
-                    for row in arranged_along_magnets
-                ]
-            ),
+            slope=np.array([
+                [datum.y.slope.value for datum in row.data]
+                for row in arranged_along_magnets
+            ]),
+            offset=np.array([
+                [datum.y.offset.value for datum in row.data]
+                for row in arranged_along_magnets
+            ]),
         ),
     )
+    # fmt: on
 
 
 def extract_matrices(data: FitResultAllMagnets) -> OrbitResponseMatrices:
