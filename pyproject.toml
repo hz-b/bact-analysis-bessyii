@@ -1,0 +1,26 @@
+[build-system]
+requires = [ "poetry-core>=1.0.0",]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "bact_analysis_bessyii"
+version = "0.0.1"
+description = "BACT accelerator optimisation analysis tools: BESSY II specific part"
+authors = ["Waheedullah Sulaiman Khail", "Pierre Schnizer"]
+license = "GPL-3.0"
+homepage = "https://github.com/hz-b/bact-bessyii-analysis"
+documentation = "https://github.com/hz-b/bact-bessyii-analysis"
+repository = "https://github.com/hz-b/bact-bessyii-analysis.git"
+keywords = []
+
+[tool.poetry.dependencies]
+python = ">=3.7"
+numpy = "*"
+scipy= "*"
+bact-device-models = "*"
+bact-math-utils = "*"
+tqdm = "*"
+databroker = "*"
+matplotlib = "*"
+# could be made optional
+pyvista = "*"
