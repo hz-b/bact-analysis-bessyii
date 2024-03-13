@@ -1,4 +1,4 @@
-from .model import OrbitResponseMatrixPlane, OrbitResponseMatrices
+from .model import OrbitResponseMatrixPlane, OrbitResponseMatricesPerSteererPlane
 
 from enum import Enum
 import matplotlib.pyplot as plt
@@ -6,14 +6,8 @@ from matplotlib import cm
 import numpy as np
 
 
-class PlaneName(Enum):
-    x = "x"
-    y = "y"
+def plot_one_orm(axis, orm: OrbitResponseMatrixPlane):
 
-
-def plot_one_orm(axis, orm: OrbitResponseMatrixPlane, plane: str):
-
-    PlaneName(plane)
     x = np.arange(len(orm.bpms))
     y = np.arange(len(orm.steerers))
 
@@ -21,7 +15,7 @@ def plot_one_orm(axis, orm: OrbitResponseMatrixPlane, plane: str):
     surf = axis.plot_surface(
         X,
         Y,
-        getattr(orm.matrix, plane).slope,
+        orm.slope,
         rstride=1,
         cstride=1,
         cmap=cm.coolwarm,
@@ -31,7 +25,7 @@ def plot_one_orm(axis, orm: OrbitResponseMatrixPlane, plane: str):
     return surf
 
 
-def plot_orms(orms: OrbitResponseMatrices):
+def plot_orms(orms: OrbitResponseMatricesPerSteererPlane):
     def set_xy_axis_ticks(ax, bpm_names, steerer_names):
         ax.set_xticks(np.arange(len(bpm_names)))
         ax.set_xticklabels(bpm_names)
@@ -46,7 +40,8 @@ def plot_orms(orms: OrbitResponseMatrices):
         for plane in ["x", "y"]:
             fig = plt.figure(figsize=plt.figaspect(1))
             ax = fig.add_subplot(1, 1, 1, projection="3d")
-            surf = plot_one_orm(ax, orms.horizontal_steerers, "x")
+            orm_plane = orm.get(plane)
+            surf = plot_one_orm(ax, orm_plane)
             ax.set_xlabel(f"bpm: {plane}")
             ax.set_ylabel(f"steerer: {plane}")
-            set_xy_axis_ticks(ax, orm.bpms, orm.steerers)
+            set_xy_axis_ticks(ax, orm_plane.bpms, orm_plane.steerers)

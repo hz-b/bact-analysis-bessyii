@@ -1,27 +1,36 @@
 import numpy as np
-
+from numpy.typing import ArrayLike
 from .model import (
-    OrbitResponseBPMs,
-    OrbitResponseSubmatrix,
-    FitResultAllMagnets,
     OrbitResponseMatrices,
     OrbitResponseMatrixPlane,
+    FitResultAllMagnets,
+    OrbitResponseMatricesPerSteererPlane,
 )
 
 
-def extract_matrix(data, magnet_names) -> OrbitResponseBPMs:
-    def extract(datum):
-        (r,) = datum
-        return r
+def extract_response_matrices(
+    data: FitResultAllMagnets, magnet_names
+) -> OrbitResponseMatrices:
+    """
 
-    arranged_along_magnets = [
-        extract([datum for datum in data.data if datum.name == name])
-        for name in magnet_names
-    ]
+    Warning:
+        assumes that each data set contains the same
+        set of magnet names a and the same set of
+        bpm names
+    """
+    arranged_along_magnets = [data.get(name) for name in magnet_names]
+
+    # for the time being I assume that all bpm's are available in
+    # every data set
+    # this prerequisite is not required for the preceeding processings
+    # step, as data are treated point by point
+    # with missing data
+    # Todo: handle that not all bpm's are in all data sets
+    bpm_names = [bpm_datum.name for bpm_datum in arranged_along_magnets[0].data]
 
     # fmt: off
-    return OrbitResponseBPMs(
-        x=OrbitResponseSubmatrix(
+    return OrbitResponseMatrices(
+        x=OrbitResponseMatrixPlane(
             slope=np.array([
                 [datum.x.slope.value for datum in row.data]
                 for row in arranged_along_magnets
@@ -30,8 +39,10 @@ def extract_matrix(data, magnet_names) -> OrbitResponseBPMs:
                 [datum.x.offset.value for datum in row.data]
                 for row in arranged_along_magnets
             ]),
+            steerers=magnet_names,
+            bpms=bpm_names,
         ),
-        y=OrbitResponseSubmatrix(
+        y=OrbitResponseMatrixPlane(
             slope=np.array([
                 [datum.y.slope.value for datum in row.data]
                 for row in arranged_along_magnets
@@ -40,34 +51,41 @@ def extract_matrix(data, magnet_names) -> OrbitResponseBPMs:
                 [datum.y.offset.value for datum in row.data]
                 for row in arranged_along_magnets
             ]),
+            steerers=magnet_names,
+            bpms=bpm_names,
         ),
     )
     # fmt: on
 
 
-def extract_matrices(data: FitResultAllMagnets) -> OrbitResponseMatrices:
+def extract_response_matrices_per_steerers(
+    data: FitResultAllMagnets,
+) -> OrbitResponseMatricesPerSteererPlane:
     horizontal_steerer_names = [
         datum.name for datum in data.data if datum.name[0] == "H"
     ]
     vertical_steerer_names = [datum.name for datum in data.data if datum.name[0] == "V"]
 
-    # for the time being I assume that all bpm's are available in
-    # every data set
-    # this prerequisite is not required for the preceeding processings
-    # step, as data are treated point by point
-    # with missing data
-    # Todo: handle that not all bpm#s are in all data sets
-    bpm_names = [datum.name for datum in data.data[0].data]
+    return OrbitResponseMatricesPerSteererPlane(
+        horizontal_steerers=extract_response_matrices(data, horizontal_steerer_names),
+        vertical_steerers=extract_response_matrices(data, vertical_steerer_names),
+    )
 
-    return OrbitResponseMatrices(
-        horizontal_steerers=OrbitResponseMatrixPlane(
-            matrix=extract_matrix(data, horizontal_steerer_names),
-            steerers=horizontal_steerer_names,
-            bpms=bpm_names,
-        ),
-        vertical_steerers=OrbitResponseMatrixPlane(
-            matrix=extract_matrix(data, vertical_steerer_names),
-            steerers=vertical_steerer_names,
-            bpms=bpm_names,
-        ),
+
+def stack_response_submatrices(orms: OrbitResponseMatricesPerSteererPlane) -> ArrayLike:
+    return np.vstack(
+        [
+            np.hstack(
+                [
+                    orms.horizontal_steerers.x.slope,
+                    orms.horizontal_steerers.y.slope,
+                ]
+            ),
+            np.hstack(
+                [
+                    orms.vertical_steerers.x.slope,
+                    orms.vertical_steerers.y.slope,
+                ]
+            ),
+        ]
     )

@@ -1,5 +1,6 @@
-from .fit import get_response
-from .prepare_plotdata import extract_matrices
+from .fit import get_response_one_magnet
+from .model import FitResultAllMagnets
+from .prepare_plotdata import extract_response_matrices_per_steerers
 from ..model.analysis_model import FitReadyData
 from ..model.analysis_util import flatten_for_fit
 from .preprocess_data import load_and_rearrange_data
@@ -18,15 +19,25 @@ def main(uid):
             )
             for measurement in tqdm.tqdm(
                 preprocessed_measurement.measurement,
-                desc="prepare fit data: ",
+                desc="prepare / rearrange  data for fit: ",
                 total=(len(preprocessed_measurement.measurement)),
             )
         ]
     )
 
-    orms = extract_matrices(get_response(fit_ready_data))
+    fit_results = FitResultAllMagnets(
+        data=[
+            get_response_one_magnet(item)
+            for item in tqdm.tqdm(
+                fit_ready_data.per_magnet,
+                desc="steerer on bpms fit:",
+                total=len(fit_ready_data.per_magnet),
+            )
+        ]
+    )
+
+    orms = extract_response_matrices_per_steerers(fit_results)
     pv_plot_orms(orms)
-    return
 
     try:
         mpl_plot_orms(orms)

@@ -1,37 +1,34 @@
-"""Create reponse matrix plot using pyvista
+"""Create response matrix plot using pyvista
 """
-from .model import OrbitResponseMatrices
+from .model import OrbitResponseMatricesPerSteererPlane
+from .prepare_plotdata import stack_response_submatrices
+
 import numpy as np
 import pyvista as pv
 from matplotlib import colormaps
 
 
-def plot_orms(orms: OrbitResponseMatrices, scale_bpm_readings=1e3, scale_offset_plot=1):
+def plot_orms(
+    orms: OrbitResponseMatricesPerSteererPlane,
+    scale_bpm_readings=1e3,
+    scale_offset_plot=1,
+):
     """
 
     Todo:
         color should be done by offset or bpm readings
         deviation should be according to offset from prediction
     """
+    Z = stack_response_submatrices(orms)
     # fmt: off
     X, Y = np.meshgrid(
         np.arange(
-            len(orms.horizontal_steerers.bpms) + len(orms.vertical_steerers.bpms)
+            len(orms.horizontal_steerers.x.bpms) + len(orms.vertical_steerers.y.bpms)
         ),
         np.arange(
-            len(orms.horizontal_steerers.steerers) + len(orms.vertical_steerers.steerers)
+            len(orms.horizontal_steerers.x.steerers) + len(orms.vertical_steerers.y.steerers)
         ),
     )
-    Z = np.vstack([
-            np.hstack([
-                orms.horizontal_steerers.matrix.x.slope,
-                orms.horizontal_steerers.matrix.y.slope,
-            ]),
-            np.hstack([
-                orms.vertical_steerers.matrix.x.slope,
-                orms.vertical_steerers.matrix.y.slope,
-            ]),
-        ])
     # fmt: on
 
     Z = (Z * scale_bpm_readings).astype(np.float32)
