@@ -12,10 +12,11 @@ import tqdm
 
 def main(uid):
     preprocessed_measurement = load_and_rearrange_data(
-        uid, prefix="bessyii-orbit-response-measured",
+        uid,
+        prefix="bessyii-orbit-response-measured",
         pv_for_applied_current="mux_sel_p_setpoint",
-        pv_for_selected_magnet = "mux_sel_selected",
-        read_from_file=True
+        pv_for_selected_magnet="mux_sel_selected",
+        read_from_file=True,
     )
     fit_ready_data = FitReadyData(
         per_magnet=[

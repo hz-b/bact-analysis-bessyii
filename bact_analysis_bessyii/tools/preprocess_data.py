@@ -1,12 +1,11 @@
-import functools
-import logging
-
+from bact_analysis.utils import preprocess
+from ..model.analysis_model import MeasurementData
+from ..model.analysis_util import get_measurement_per_magnet
 from databroker import catalog
 
-from bact_analysis.utils import preprocess
+import functools
+import logging
 import tqdm
-from bact_analysis_bessyii.model.analysis_model import MeasurementData
-from bact_analysis_bessyii.model.analysis_util import get_measurement_per_magnet
 
 #: variables with bpm names
 bpm_variables = (
@@ -73,10 +72,6 @@ def load_and_check_data(
     bpm_names = config["data"]["bpm_names"]
     bpm_dims = replaceable_dims_bpm(dataset, prefix="", expected_length=len(bpm_names))
 
-    # bba
-
-    # orm
-
     # Find out: repetition of measurement at this stage
     muxer_pc_current_change = preprocess.enumerate_changed_value(
         dataset[pv_for_applied_current]
@@ -91,7 +86,6 @@ def load_and_check_data(
 
     replace_dims = {dim: "bpm" for dim in bpm_dims}
     all_data = dataset.rename(replace_dims).assign_coords(bpm=list(bpm_names))
-
     # ignore data that of first reading ... could be from switching
     # Todo:
     #      enumerate before how often the measurement was repeated
@@ -105,8 +99,8 @@ def load_and_check_data(
         measurement=[
             get_measurement_per_magnet(
                 all_data__.isel(time=all_data__[pv_for_selected_magnet] == name),
-                pv_for_selected_magnet = pv_for_selected_magnet,
-                pv_for_applied_current = pv_for_applied_current,
+                pv_for_selected_magnet=pv_for_selected_magnet,
+                pv_for_applied_current=pv_for_applied_current,
             )
             for name in set(all_data__[pv_for_selected_magnet].values)
         ]
@@ -119,12 +113,12 @@ def load_and_check_data(
 def load_and_rearrange_data(
     uid: str,
     catalog_name: str = "heavy_local",
-        *,
+    *,
     pv_for_applied_current,
     pv_for_selected_magnet,
     load_all: bool = True,
     read_from_file: bool = False,
-    prefix: str= ""
+    prefix: str = "",
 ):
     """load data using uid and make it selectable per magnet
     Todo:
@@ -133,11 +127,16 @@ def load_and_rearrange_data(
     if read_from_file:
         ds, metadata = load_data_metadata_from_files(uid, prefix=prefix)
     else:
-        ds, metadata = load_data_metadata_from_catalog(uid, catalog_name=catalog_name, load_all=load_all)
-    return load_and_check_data(ds, metadata, device_name="bpm",
-                                   pv_for_applied_current = pv_for_applied_current ,
-                                   pv_for_selected_magnet = pv_for_selected_magnet,
-                                   )
+        ds, metadata = load_data_metadata_from_catalog(
+            uid, catalog_name=catalog_name, load_all=load_all
+        )
+    return load_and_check_data(
+        ds,
+        metadata,
+        device_name="bpm",
+        pv_for_applied_current=pv_for_applied_current,
+        pv_for_selected_magnet=pv_for_selected_magnet,
+    )
 
 
 def load_data_metadata_from_catalog(uid: str, catalog_name: str, *, load_all: bool):
@@ -154,9 +153,9 @@ def load_data_metadata_from_catalog(uid: str, catalog_name: str, *, load_all: bo
     ds = stream.to_dask()
     if load_all:
         for name, item in tqdm.tqdm(
-                ds.items(),
-                total=len(ds.variables),
-                desc="Loading individual variables",
+            ds.items(),
+            total=len(ds.variables),
+            desc="Loading individual variables",
         ):
             item.load()
     return ds, stream.metadata
