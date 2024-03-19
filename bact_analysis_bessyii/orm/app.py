@@ -3,7 +3,7 @@ from .model import FitResultAllMagnets
 from .prepare_plotdata import extract_response_matrices_per_steerers
 from ..model.analysis_model import FitReadyData
 from ..model.analysis_util import flatten_for_fit
-from .preprocess_data import load_and_rearrange_data, load_and_rearrange_data_from_files
+from ..tools.preprocess_data import load_and_rearrange_data
 from .plot_matplotlib import plot_orms as mpl_plot_orms
 from .plot_pyvista import plot_orms as pv_plot_orms
 from matplotlib import pyplot as plt
@@ -11,8 +11,13 @@ import tqdm
 
 
 def main(uid):
-    # preprocessed_measurement = load_and_rearrange_data(uid)
-    preprocessed_measurement = load_and_rearrange_data_from_files(uid)
+    preprocessed_measurement = load_and_rearrange_data(
+        uid,
+        prefix="bessyii-orbit-response-measured",
+        pv_for_applied_current="mux_sel_p_setpoint",
+        pv_for_selected_magnet="mux_sel_selected",
+        read_from_file=True,
+    )
     fit_ready_data = FitReadyData(
         per_magnet=[
             flatten_for_fit(

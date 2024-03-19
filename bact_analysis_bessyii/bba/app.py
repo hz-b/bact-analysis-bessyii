@@ -6,12 +6,12 @@ import tqdm
 import xarray as xr
 from bact_analysis.transverse.twiss_interpolate import interpolate_twiss
 from bact_analysis.utils.preprocess import rename_doublicates, replace_names
-from bact_analysis_bessyii.bba.preprocess_data import (load_and_rearrange_data_from_files, load_and_rearrange_data, )
-from bact_analysis_bessyii.model.analysis_model import (MeasurementData, MeasurementPerMagnet, EstimatedAngles,
+from ..tools.preprocess_data import load_and_rearrange_data
+from ..model.analysis_model import (MeasurementData, MeasurementPerMagnet, EstimatedAngles,
                                                         FitReadyData)
-from bact_analysis_bessyii.model.analysis_util import (measurement_per_magnet_bpms_raw_data_to_m, flatten_for_fit, )
-from bact_analysis_bessyii.model.calc import get_magnet_estimated_angle
-from bact_analysis_bessyii.tools.correct_bpm_naming import measurement_per_magnet_bpm_data_correct_name
+from ..model.analysis_util import (measurement_per_magnet_bpms_raw_data_to_m, flatten_for_fit, )
+from ..model.calc import get_magnet_estimated_angle
+from ..tools.correct_bpm_naming import measurement_per_magnet_bpm_data_correct_name
 from bact_bessyii_mls_ophyd.db.mongo_repository import InitializeMongo
 from .bpm_repo import BPMCalibrationsRepositoryBESSYII
 
@@ -56,7 +56,11 @@ calib_repo = BPMCalibrationsRepositoryBESSYII()
 
 
 def main(uid):
-    preprocessed_measurement = load_and_rearrange_data(uid )
+    preprocessed_measurement = load_and_rearrange_data(
+        uid, prefix="bba-measured", read_from_file=True,
+        pv_for_applied_current="mux_power_converter_setpoint",
+        pv_for_selected_magnet = "mux_selected_multiplexer_readback",
+    )
     # preprocessed_measurement = load_and_rearrange_data_from_files(uid)
     # correct the bpm names
     if True:
