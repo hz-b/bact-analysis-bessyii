@@ -107,3 +107,18 @@ def load_and_rearrange_data(
                 item.load()
 
         return load_and_check_data(ds, stream.metadata, device_name="bpm")
+
+
+def load_and_rearrange_data_from_files(uid: str, prefix="bessyii-orbit-response-measured"):
+    import bz2
+    import json
+    import xarray as xr
+
+    filename = f"{prefix}-{uid}-metadata.json.bz2"
+    with bz2.open(filename, 'rt') as fp:
+        metadata = json.load(fp)
+    filename = f"{prefix}-{uid}-raw-data.json.bz2"
+    with bz2.open(filename, 'rt') as fp:
+        ds = xr.Dataset.from_dict(json.load(fp))
+
+    return load_and_check_data(ds, metadata, device_name="bpm")
