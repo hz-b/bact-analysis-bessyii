@@ -28,7 +28,13 @@ jobs:
       with:
           repository: hz-b/bact-math-utils
           path: bact-math-utils
-          
+
+    - name: Checkout bact-device-models
+      uses: actions/checkout@v4
+      with:
+          repository: hz-b/bact-device-models
+          path: bact-device-models
+
     - name: Checkout bact-analysis
       uses: actions/checkout@v4
       with:
@@ -58,7 +64,7 @@ jobs:
         
     - name: Install local dependencies
       run: | 
-           for t_dir in bact-math-utils bact-analysis bact2_bessyii
+           for t_dir in bact-math-utils bact-device-models bact-analysis bact2_bessyii
            do
               if [ -f $t_dir/requirements.txt ]; then pip install -r $t_dir/requirements.txt; fi
               # make it a path, otherwise it searches pypi repo
