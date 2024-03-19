@@ -20,20 +20,23 @@ from abc import abstractmethod, ABCMeta
 logger = logging.getLogger("bact-analysis")
 
 
-def get_measurement_per_magnet(data_for_one_magnet):
+def get_measurement_per_magnet(
+        data_for_one_magnet, *, pv_for_selected_magnet: str, pv_for_applied_current: str,
+    ):
     # todo: validate that setpoint and readback are within limits
-    (name,) = set(data_for_one_magnet["mux_sel_selected"].values)
+    (name,) = set(data_for_one_magnet[pv_for_selected_magnet].values)
 
     muxer_or_pc_current_change = preprocess.enumerate_changed_value_pairs(
-        data_for_one_magnet["mux_sel_p_setpoint"],
-        data_for_one_magnet["mux_sel_selected"],
+        data_for_one_magnet[pv_for_applied_current],
+        data_for_one_magnet[pv_for_selected_magnet],
     )
 
     return MeasurementPerMagnet(
         name=name,
         # Bluesky stacks ups the measurement on this time axis
         per_magnet=[
-            get_measurement_point(data_for_one_magnet.sel(time=t), step=step)
+            get_measurement_point(data_for_one_magnet.sel(time=t), step=step,
+                                  pv_for_applied_current=pv_for_applied_current)
             for t, step in zip(
                 data_for_one_magnet.coords["time"].values,
                 muxer_or_pc_current_change.values,
@@ -77,12 +80,12 @@ def flatten_for_fit(
     )
 
 
-def get_measurement_point(magnet_data_per_point, *, step):
+def get_measurement_point(magnet_data_per_point, *, step, pv_for_applied_current):
     # extact bpm x and y from the data into an array
     return MeasurementPoint(
         step=step,
         #: Todo pseudo or real / engineering units
-        excitation=float(magnet_data_per_point["mux_sel_r_setpoint"].values),
+        excitation=float(magnet_data_per_point[pv_for_applied_current].values),
         bpm=magnet_data_per_point.bpm_elem_data.values,
     )
 
