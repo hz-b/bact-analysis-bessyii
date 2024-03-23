@@ -1,21 +1,23 @@
+import functools
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Sequence, OrderedDict, Optional
-
+from typing import Sequence, Optional
+from numpy.typing import ArrayLike
 import numpy as np
 
 from bact_device_models.devices.bpm_elem import BpmElem
 
-# corresponding data array to offset data
-# res = xr.DataArray(
-#    data=[[x, x_err], [y, y_err]],
-#    dims=["plane", "result", "name"],
-#    coords=[["x", "y"], ["value", "error"], names],
-# )
+
+def index_for_datum_with_name(data) -> dict:
+    """build an index for a set of data that contain a name"""
+    return {datum.name: cnt for cnt, datum in enumerate(data)}
+
+
 
 class Polarity(IntEnum):
     positive = 1
     negative = -1
+
 
 @dataclass
 class MagnetInfo:
@@ -31,13 +33,18 @@ class MagnetInfo:
     #:    * for focusing quadrupole x = 1, y = -1
     #:    * for defocusing quadrupole x = -1, y = 1
     polarity: Polarity
+
+
 @dataclass
 class OffsetFitResult:
     """Magnet offset obtained by BBA for one plane
 
     Fit of the deviated orbit to the beam based alignment procedure
-    """
 
+    Todo:
+        compare to FitResult
+        Should a separate dataclass be used for the offset
+    """
     # offset of the (quadrupole magnet)
     value: float
     # estimate of its accuracy
@@ -96,10 +103,12 @@ class BPMCalibrationPlane:
         """
         return abs( (bits * self.bit2val) * self.scale )
 
+
 @dataclass
 class BPMCalibration:
     x : BPMCalibrationPlane
     y : BPMCalibrationPlane
+
 
 @dataclass
 class MeasurementPoint:
@@ -134,19 +143,29 @@ class MeasurementData:
 class MeasuredItem:
     """
     Mathematically speaking a random variable described by its first two momenta
+
+    Todo:
+        Replace or derive from FitResult
     """
     #: value returned by the measurement, typically close to the first momentum
     value: float
     #: estimate of its error typically similar to the first momentum
     rms: float
+    #: typically the position name
+    name: str
 
 
 @dataclass
 class MeasuredValues:
     """Orbit data along the ring, e.g. as measured by the beam position monitors
     """
-    data: OrderedDict[str, MeasuredItem]
-    pass
+    data: Sequence[MeasuredItem]
+
+    def get(self, name) -> MeasuredItem:
+        @functools.lru_cache()
+        def indices():
+            return index_for_datum_with_name(self.data)
+        return self.data[indices()[name]]
 
 
 @dataclass
@@ -161,10 +180,10 @@ class FitReadyDataPerMagnet:
     # name of the magnet the data has been estimated for
     name: str
     # sequence number of the measurement (0, 1, 2, 3 ...)
-    steps: np.ndarray
+    steps: Sequence[int]
     # excitation that was applied to the magnet (typically
     # the current of the muxer power converter)
-    excitations: np.ndarray
+    excitations: Sequence[float]
     x: Optional[Sequence[MeasuredValues]]
     y: Optional[Sequence[MeasuredValues]]
 
@@ -177,9 +196,16 @@ class FitReadyDataPerMagnet:
     # quality: str
 
 
-@dataclass
+@dataclass(frozen=True)
 class FitReadyData:
     per_magnet: Sequence[FitReadyDataPerMagnet]
+
+    def get(self, magnet_name: str) -> FitReadyDataPerMagnet:
+        @functools.lru_cache
+        def name_to_index():
+            return index_for_datum_with_name(self.per_magnet)
+
+        return self.per_magnet[name_to_index()[magnet_name]]
 
 
 @dataclass
@@ -205,15 +231,40 @@ class DistortedOrbitUsedForKick:
     # value: orbit deviation at this spot
     # delta: np.ndarray
     # or should it be a hashable i.e a key value
-    # delta : OrderedDict
-    delta: OrderedDict[str, float]
+    delta: Sequence[ValueForElement]
+
+
+@dataclass
+class TransversePlanesValuesForElement:
+    """
+    """
+    x: ValueForElement
+    y: ValueForElement
+
+
+class DistortedOrbitUsedForKickTransversalPlanes:
+    delta: Sequence[TransversePlanesValuesForElement]
+
+    def at_position(self, name) -> TransversePlanesValuesForElement:
+        @functools.lru_cache
+        def indices():
+            return index_for_datum_with_name(self.delta)
+        return self.delta[indices()[name]]
+
+
+@dataclass
+class FitInput:
+    A: ArrayLike
+    b: ArrayLike
 
 
 @dataclass
 class FitResult:
     value: float
     std: float
-
+    name: str
+    #: these data are rather large, should we always store them?
+    input: Optional[FitInput]
 
 @dataclass
 class ErrorEstimates:
@@ -228,17 +279,20 @@ class ErrorEstimates:
 
 
 @dataclass
-class  EstimatedAngleForPlane:
+class EstimatedAngleForPlane:
     orbit: DistortedOrbitUsedForKick
     # the angle that is corresponding to this kick
     equivalent_angle: FitResult
     # retrieved from the fit measurement
-    bpm_offsets: OrderedDict[str, FitResult]
+    bpm_offsets: Sequence[FitResult]
+    error_estimates : ErrorEstimates
+
+@dataclass
+class EstimatedAngleAndOffsetsForPlane(EstimatedAngleForPlane):
     # or derived offset ... no need to separate it
     offset: FitResult
-    error_estimates : ErrorEstimates
-    # fit_ready_data : FitReadyData
 
+    # fit_ready_data : FitReadyData
 
 @dataclass
 class MagnetEstimatedAngles:
@@ -247,8 +301,18 @@ class MagnetEstimatedAngles:
     x: EstimatedAngleForPlane
     y: EstimatedAngleForPlane
 
+
 @dataclass
 class EstimatedAngles:
-    per_magnet: OrderedDict[str, MagnetEstimatedAngles]
+    per_magnet: Sequence[MagnetEstimatedAngles]
     # metadata
     md: Optional[object]
+
+    def get(self, magnet_name: str):
+        @functools.lru_cache
+        def indices():
+            return index_for_datum_with_name(self.per_magnet)
+
+        return self.per_magnet[indices()[magnet_name]]
+
+

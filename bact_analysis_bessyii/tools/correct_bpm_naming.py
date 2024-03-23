@@ -21,7 +21,7 @@ def bpm_correct_name(bpm_name):
     # The code was missing that minus one was subtracted
     # so the correct name should be the one which corresponds
     # to and index which is one higher
-    index_of_used_entry = idx + 1
+    index_of_used_entry = idx - 1
     correct_name = conf.index[index_of_used_entry == conf.idx].values
     if correct_name:
         (correct_name,) = correct_name

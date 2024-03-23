@@ -2,13 +2,11 @@ import functools
 from dataclasses import dataclass
 from enum import Enum
 from typing import Sequence
+
+from bact_analysis_bessyii.model.analysis_model import index_for_datum_with_name
+
 from ..model.analysis_model import FitResult
 from numpy.typing import ArrayLike
-
-
-def index_for_datum_with_name(data) -> dict:
-    """build an index for a set of data that contain a name"""
-    return {datum.name: cnt for cnt, datum in enumerate(data)}
 
 
 @dataclass
@@ -22,8 +20,6 @@ class FitResultBPMPlane:
 class FitResultPerBPM:
     x: FitResultBPMPlane
     y: FitResultBPMPlane
-    #: name of the beam position monitor
-    name: str
 
 
 @dataclass
@@ -44,7 +40,7 @@ class FitResultPerMagnet:
 class FitResultAllMagnets:
     data: Sequence[FitResultPerMagnet]
 
-    def get(self, magnet_name) -> FitResultPerBPM:
+    def get(self, magnet_name) -> FitResultPerMagnet:
         @functools.lru_cache
         def indices() -> dict:
             return index_for_datum_with_name(self.data)

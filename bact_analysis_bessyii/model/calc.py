@@ -1,6 +1,8 @@
 import copy
 import logging
 
+from dt4acc.model.twiss import Twiss
+
 from ..business_logic.obsolete import (
     get_polarity_by_magnet_name,
     get_length_by_magnet_name,
@@ -12,7 +14,7 @@ from ..model.analysis_model import (
     FitResult,
     MagnetEstimatedAngles,
     MagnetInfo,
-    ErrorEstimates,
+    ErrorEstimates, FitReadyDataPerMagnet, FitInput,
 )
 from ..model.analysis_util import get_data_as_lists, flatten_for_fit
 from bact_math_utils.distorted_orbit import closed_orbit_distortion
@@ -131,19 +133,21 @@ def angle(dist_orb: np.ndarray, meas_orb: np.ndarray) -> (np.ndarray, np.ndarray
 
 
 def get_magnet_estimated_angle(
-        fit_ready_data, selected_model, t_theta, pos="pos", rms="rms"
+        fit_ready_data, pos_name, selected_model, t_theta, pos="pos", rms="rms"
 ) -> MagnetEstimatedAngles:
     name = fit_ready_data.name
     return MagnetEstimatedAngles(
         name=name,
         x=get_estimated_angle_for_plane(
             fit_ready_data,
+            pos_name,
             selected_model,
             plane="x",
             theta=t_theta
         ),
         y=get_estimated_angle_for_plane(
             fit_ready_data,
+            pos_name,
             selected_model,
             plane="y",
             theta=t_theta
@@ -151,43 +155,40 @@ def get_magnet_estimated_angle(
     )
 
 
-
-def calculate_offset(
-        angle,
-):
-    pass
-
-
 def get_estimated_angle_for_plane(
-        fit_ready_data,
-        selected_model,
+        fit_ready_data : FitReadyDataPerMagnet,
+        pos_name: str,
+        selected_model : Twiss,
         *,
         plane,
         theta
 ) -> EstimatedAngleForPlane:
-    magnet_name = fit_ready_data.name
-    """Function to get estimated angle for a specific plane per magnet"""
+    """Function to get estimated angle for a specific plane per magnet
+
+    Todo:
+        distorted orbit and orbit from kick: use separate function
+    """
     # Calculate distorted orbit based on provided model data
     distorted_orbit = closed_orbit_distortion(
-        selected_model.beta.sel(plane=plane).values,
-        selected_model.mu.sel(plane=plane).values * 2 * np.pi,
-        tune=selected_model.mu.sel(plane=plane).values[-1],
-        beta_i=selected_model.beta.sel(plane=plane, pos=magnet_name).values,
-        mu_i=selected_model.mu.sel(plane=plane, pos=magnet_name).values * 2 * np.pi,
+        selected_model.get_plane(plane).beta,
+        selected_model.get_plane(plane).nu,
+        tune=selected_model.get_plane(plane).nu[-1] / (2 * np.pi),
+        beta_i=selected_model.at_position(pos_name).get_plane(plane).beta,
+        mu_i=selected_model.at_position(pos_name).get_plane(plane).nu,
         theta_i=theta,
     )
     # one magnet one plane
     kick = DistortedOrbitUsedForKick(
         kick_strength=theta,
         delta=OrderedDictImpl(
-            zip(selected_model.coords["pos"].values, distorted_orbit)
+            zip(selected_model.names, distorted_orbit)
         ),
     )
     # Prepare measured data and perform fitting
     # flattened = flatten_for_fit(per_magnet_measurement, magnet_name, pos=pos, rms=rms)
     # return an object of EstimatedAngleForPlane
     return derive_angle(
-        kick, getattr(fit_ready_data, plane), fit_ready_data.excitations, plane, fit_ready_data.name
+        kick, getattr(fit_ready_data, plane), fit_ready_data.excitations
     )
 
 
@@ -195,15 +196,13 @@ def derive_angle(
         orbit_for_kick: DistortedOrbitUsedForKick,
         measured_data: Sequence[MeasuredValues],
         excitations: np.ndarray,
-        plane,
-        magnet_name,
 ) -> EstimatedAngleForPlane:
     """Kicker angle derived from expected orbit, excitation and distortion measurements
 
     Args:
-        orbit:       orbit expected for some excitation (e.g. 10 urad)
-        excitation:  different excitations applied to the magnet
-        measurement: the measured orbit distortions (containing
+        orbit_for_kick:       orbit expected for some excitation (e.g. 10 urad)
+        excitations:  different excitations applied to the magnet
+        measured_data: the measured orbit distortions (containing
                      difference orbit)
         weights (default =None): weights of the measurements
 
@@ -213,7 +212,7 @@ def derive_angle(
     measurement, weights = np.array(get_data_as_lists(measured_data))
     excitations = np.asarray(excitations)
     # todo: consistent naming!
-    measurement_position_names = measured_data[0].data.keys()
+    measurement_position_names = [datum.name for datum in measured_data[0].data]
     orbit = np.asarray(
         [orbit_for_kick.delta[name] for name in measurement_position_names]
     )
@@ -224,7 +223,7 @@ def derive_angle(
         sqw = None
     else:
         sqw = np.sqrt(weights)
-    #: todo: renable weights
+    #: todo: reenable weights
     sqw = None
 
     # check that these both are vectors
@@ -286,6 +285,8 @@ def derive_angle(
     equivalent_angle = FitResult(
         value=p[-1] * orbit_for_kick.kick_strength,
         std=p_std[-1] * orbit_for_kick.kick_strength,
+        name="equivalent_angle",
+        input=FitInput(A=A_prep, b=measurement)
     )
 
     # calculate estimates for fit: mse / mae
@@ -299,7 +300,14 @@ def derive_angle(
         mean_square_error=mean_square_error(dv, axis=-1).tolist(),
         mean_absolute_error=mean_absolute_error(dv, axis=-1).tolist(),
     )
-
+    return EstimatedAngleForPlane(
+        orbit=orbit_for_kick,
+        equivalent_angle=equivalent_angle,
+        bpm_offsets=[FitResult(value=v, std=s, name=name, input=None)
+                     for v, s, name  in zip(p[:n_orb], p_std[:n_orb], measurement_position_names)],
+        error_estimates=error_estimates
+        )
+    # this code is only for BBA should go to separate function
     # quadrupoles: by convention +K for horizontal -K for vertical plane
     plane_sign = dict(x=1, y=-1)[plane]
     magnet_info = MagnetInfo(
@@ -314,18 +322,6 @@ def derive_angle(
         magnet_info, np.array([equivalent_angle.value, equivalent_angle.std])
     )
     offset = FitResult(value=float(tmp[0]), std=float(tmp[1]))
-    return EstimatedAngleForPlane(
-        orbit=orbit_for_kick,
-        equivalent_angle=equivalent_angle,
-        bpm_offsets=OrderedDictImpl(
-            zip(
-                measurement_position_names,
-                [FitResult(value=v, std=s) for v, s in zip(p[:n_orb], p_std[:n_orb])],
-            )
-        ),
-        offset=offset,
-        error_estimates=error_estimates
-    )
 
 
 def plot_fit_result(*, fit_parameters, measurement, measured_data, excitations, sorb, magnet_name: str, plane: str):

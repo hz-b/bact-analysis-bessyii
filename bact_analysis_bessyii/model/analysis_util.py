@@ -57,13 +57,14 @@ def flatten_for_fit(
 
         # flatten out the bpm data
         for bpm in measurement_point.bpm:
-            x_data.append(MeasuredItem(bpm["x"][pos], bpm["x"][rms]))
-            y_data.append(MeasuredItem(bpm["y"][pos], bpm["y"][rms]))
+            x_data.append(MeasuredItem(bpm["x"][pos], bpm["x"][rms], name=bpm["name"]))
+            y_data.append(MeasuredItem(bpm["y"][pos], bpm["y"][rms], name=bpm["name"]))
 
         # data of the bpm: flattened out
         # fmt:off
-        x_values.append(MeasuredValues(OrderedDictmpl(zip([bpm["name"] for bpm in measurement_point.bpm], x_data))))
-        y_values.append(MeasuredValues(OrderedDictmpl(zip([bpm["name"] for bpm in measurement_point.bpm], y_data))))
+        x_values.append(MeasuredValues(x_data))
+        y_values.append(MeasuredValues(y_data))
+
         # fmt:on
 
     return FitReadyDataPerMagnet(
@@ -96,8 +97,8 @@ def get_measurement_point(magnet_data_per_point, *, step, pv_for_applied_current
 def get_data_as_lists(
     fit_data_for_one_magnet: MeasuredValues,
 ) -> (List[List[float]], List[List[float]]):
-    vals = [[v.value for _, v in item.data.items()] for item in fit_data_for_one_magnet]
-    rms = [[v.rms for _, v in item.data.items()] for item in fit_data_for_one_magnet]
+    vals = [[v.value for v in item.data] for item in fit_data_for_one_magnet]
+    rms = [[v.rms for v in item.data] for item in fit_data_for_one_magnet]
     return vals, rms
 
 

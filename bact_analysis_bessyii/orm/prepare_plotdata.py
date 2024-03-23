@@ -26,7 +26,7 @@ def extract_response_matrices(
     # step, as data are treated point by point
     # with missing data
     # Todo: handle that not all bpm's are in all data sets
-    bpm_names = [bpm_datum.name for bpm_datum in arranged_along_magnets[0].data]
+    bpm_names = [bpm_datum.x.slope.name for bpm_datum in arranged_along_magnets[0].data]
 
     # fmt: off
     return OrbitResponseMatrices(

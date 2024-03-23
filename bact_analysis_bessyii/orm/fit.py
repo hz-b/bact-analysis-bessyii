@@ -19,7 +19,7 @@ from ..model.analysis_model import (
 
 
 def get_response_one_magnet_one_bpm_one_plane(
-    measured_values: Sequence[MeasuredItem], excitations: Sequence[float]
+    measured_values: Sequence[MeasuredItem], excitations: Sequence[float], name:str
 ) -> FitResultBPMPlane:
     """
 
@@ -49,8 +49,8 @@ def get_response_one_magnet_one_bpm_one_plane(
     std = cov_to_std(cov)
 
     return FitResultBPMPlane(
-        slope=FitResult(value=fitres[0][0], std=std[0]),
-        offset=FitResult(value=fitres[0][1], std=std[1]),
+        slope=FitResult(value=fitres[0][0], std=std[0], name=name, input=None),
+        offset=FitResult(value=fitres[0][1], std=std[1], name=name, input=None),
     )
 
 
@@ -69,9 +69,8 @@ def get_response_one_magnet_one_bpm(
 
     """
     return FitResultPerBPM(
-        x=get_response_one_magnet_one_bpm_one_plane(x, excitations),
-        y=get_response_one_magnet_one_bpm_one_plane(y, excitations),
-        name=bpm_name,
+        x=get_response_one_magnet_one_bpm_one_plane(x, excitations, name=bpm_name),
+        y=get_response_one_magnet_one_bpm_one_plane(y, excitations, name=bpm_name),
     )
 
 
@@ -82,12 +81,12 @@ def get_response_one_magnet(
         data=[
             get_response_one_magnet_one_bpm(
                 # for all e
-                x=[datum.data[bpm_name] for datum in fit_ready_data.x],
-                y=[datum.data[bpm_name] for datum in fit_ready_data.y],
+                x=[one_measurement.get(bpm_name) for one_measurement in fit_ready_data.x],
+                y=[one_measurement.get(bpm_name) for one_measurement in fit_ready_data.y],
                 excitations=fit_ready_data.excitations,
                 bpm_name=bpm_name,
             )
-            for bpm_name in fit_ready_data.x[0].data
+            for bpm_name in [measured_item.name for  measured_item in fit_ready_data.x[0].data]
         ],
         name=fit_ready_data.name,
     )
