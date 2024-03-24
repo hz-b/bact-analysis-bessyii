@@ -122,17 +122,18 @@ def plot_forecast_difference_for_magnet(
         ax, a_diff, a_test = axes
         bpm_offsets = np.array([datum.value for datum in fr4p.bpm_offsets])
 
-        for excitation, color, m, orb_exc, A_exc, b_exc in zip(
+        # todo: need to handle fit of 1D and 2D data
+        # for excitation, color, m, orb_exc  , A_exc, b_exc in zip(
+        for excitation, color, m, orb_exc in zip(
             measured_data.excitations,
             color_for_excitation(measured_data.excitations),
             measurements,
             orb4p,
-            fr4p.equivalent_angle.input.A[:, :, -1],
-            fr4p.equivalent_angle.input.b,
+            # fr4p.equivalent_angle.input.A[:, :, -1],
+            # fr4p.equivalent_angle.input.b,
         ):
 
-            guess_scale = 1
-            orb = np.array([datum.value for datum in orb_exc.orbit]) * guess_scale
+            orb = np.array([datum.value for datum in orb_exc.orbit])
             mea = np.array([datum.value for datum in m.data])
 
             # plot scale
@@ -142,16 +143,16 @@ def plot_forecast_difference_for_magnet(
             ax.plot(s, mea * p_scale, '.', color=color, label="measurement")
             ax.plot(s, (bpm_offsets) * p_scale, '--', color=color, label="bpm_offsets")
             ax.plot(s, (orb + bpm_offsets) * p_scale, '-', color=color, label="predicted orbit")
-            ax.plot(s, b_exc * p_scale, 'x', color=color, label="measured data used for fit")
+            # ax.plot(s, b_exc * p_scale, 'x', color=color, label="measured data used for fit")
 
             # Data as above but with bpm offsets subtracted
             a_diff.plot(s, (mea - bpm_offsets) * p_scale, color=color, label="measurement", linestyle='-', linewidth=.2, marker='.')
             a_diff.plot(s, orb * p_scale, '.-', color=color, label="orbit inferred from fit")
-            a_diff.plot(s, (b_exc - bpm_offsets) * p_scale, 'x', color=color, label="measured data used for fit - bpm offset")
+            # a_diff.plot(s, (b_exc - bpm_offsets) * p_scale, 'x', color=color, label="measured data used for fit - bpm offset")
 
             # Orbit used at fit
-            a_test.plot(s, A_exc * p_scale, '-', color=color, label="scaled orbit used for fit")
-            a_test.plot(s, A_exc * p_scale * fr4p.equivalent_angle.value , '--', color=color, label="orbit as expected to match fit")
+            # a_test.plot(s, A_exc * p_scale, '-', color=color, label="scaled orbit used for fit")
+            # a_test.plot(s, A_exc * p_scale * fr4p.equivalent_angle.value , '--', color=color, label="orbit as expected to match fit")
 
     ax_x.set_title(f"Magnet {measured_data.name}")
     ax_x.set_ylabel("x [mm]")

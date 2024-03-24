@@ -242,14 +242,22 @@ class TransversePlanesValuesForElement:
     y: ValueForElement
 
 
+@dataclass
 class DistortedOrbitUsedForKickTransversalPlanes:
+    """Represent
+    """
+    #: The kick strength that was used to produce the kick
+    kick_strength: float
     delta: Sequence[TransversePlanesValuesForElement]
 
     def at_position(self, name) -> TransversePlanesValuesForElement:
         @functools.lru_cache
         def indices():
-            return index_for_datum_with_name(self.delta)
-        return self.delta[indices()[name]]
+            return index_for_datum_with_name([datum.x for datum in self.delta])
+
+        r = self.delta[indices()[name]]
+        assert r.x.name == r.y.name
+        return r
 
 
 @dataclass

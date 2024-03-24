@@ -11,7 +11,7 @@ from .measured_data_cleaning import measurement_data_with_known_bpms_only
 from .model import OrbitPredictionCollection, AcceleratorDescription, SurveyPositions, Position
 from .plot_matplotlib import plot_bpm_offsets, plot_forecast_difference
 from .prepare_plot_data import compute_prediction_per_magnet
-from .steerer_excitations import fit_steerer_response_one
+from .steerer_excitations import fit_steerer_response_one_separate_per_plane, fit_steerer_response_one_both_planes
 from ..bba.app import calib_repo
 from ..model.analysis_model import FitReadyData, MeasurementData, EstimatedAngles
 from ..model.analysis_util import (
@@ -39,7 +39,7 @@ def twiss_from_at() -> AcceleratorDescription:
     )
 
 
-def main(uid):
+def main(uid, n_magnets=None):
     model = twiss_from_at()
     space_col = SpaceMappingCollectionBESSYII()
 
@@ -86,6 +86,7 @@ def main(uid):
     preprocessed_measurement = measurement_data_with_known_bpms_only(
         preprocessed_measurement, bpm_names_known_model_measurement
     )
+
     fit_ready_data = FitReadyData(
         per_magnet=[
             flatten_for_fit(
@@ -112,9 +113,26 @@ def main(uid):
     )
 
     name_pos_service = DeviceLocationServiceBESSYII()
+    steerer_response_fit_2d = EstimatedAngles(
+        per_magnet=[
+            fit_steerer_response_one_both_planes(
+                data,
+                name_pos_service.get_location_name(data.name),
+                space_col=space_col,
+                model=model.twiss,
+            )
+            for data in tqdm.tqdm(
+                fit_ready_data.per_magnet,
+                total=len(fit_ready_data.per_magnet),
+                desc="fitting steerer excitations (both planes)",
+            )
+        ],
+        md=None,
+    )
+
     steerer_response_fit = EstimatedAngles(
         per_magnet=[
-            fit_steerer_response_one(
+            fit_steerer_response_one_separate_per_plane(
                 data,
                 name_pos_service.get_location_name(data.name),
                 space_col=space_col,
@@ -150,9 +168,9 @@ def main(uid):
     # plot_steerer_response(fit_ready_data, orbit_prediction)
     try:
         plt.ion()
-        plot_forecast_difference(fit_ready_data, orbit_prediction, steerer_response_fit,
+        plot_forecast_difference(fit_ready_data, orbit_prediction, steerer_response_fit_2d,
                                  model)
-        plot_bpm_offsets(fit_ready_data, steerer_response_fit, model)
+        plot_bpm_offsets(fit_ready_data, steerer_response_fit_2d, model)
     except Exception:
         plt.ioff()
         raise

@@ -95,7 +95,7 @@ def get_measurement_point(magnet_data_per_point, *, step, pv_for_applied_current
 
 
 def get_data_as_lists(
-    fit_data_for_one_magnet: MeasuredValues,
+    fit_data_for_one_magnet: Sequence[MeasuredValues],
 ) -> (List[List[float]], List[List[float]]):
     vals = [[v.value for v in item.data] for item in fit_data_for_one_magnet]
     rms = [[v.rms for v in item.data] for item in fit_data_for_one_magnet]
