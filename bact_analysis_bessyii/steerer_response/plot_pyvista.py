@@ -6,6 +6,7 @@ from matplotlib import colormaps
 from dt4acc.model.planes import Planes
 
 from .model import OrbitPredictionCollection, AcceleratorDescription, OrbitPredictionForKicks, OrbitPredictionForPlane
+from ..interfaces.element_families import ElementFamilies
 from ..model.analysis_model import FitReadyData, EstimatedAngles, MagnetEstimatedAngles, ErrorType, \
     FitReadyDataPerMagnet, MeasuredValues, FitResult
 
@@ -39,6 +40,7 @@ def plot_forecast_difference_3D(
         orbit_prediction: OrbitPredictionCollection,
         fits: EstimatedAngles,
         acc_desc: AcceleratorDescription,
+        element_families : ElementFamilies,
         orbit_scale: float=1e4
 ):
 
@@ -48,12 +50,39 @@ def plot_forecast_difference_3D(
     s_bpms = [acc_desc.survey.get(name).value for name in bpm_names]
 
     steerer_names = [datum.name for datum in measured_data.per_magnet]
-    # s_steerers = [acc_desc.survey.get(name).value for name in steerer_names]
+    # limit to known ones
+    name_to_position = lambda pos_name: acc_desc.survey.get(pos_name)
+    h_steerers = [
+        name for name in element_families.get("horizontal_steerers").members
+        # todp: need to clear that hack... preporessing of measurement data
+        # a good stage towards a consistent data set ?
+        if name.replace('M', 'P') in steerer_names
+    ]
+    v_steerers = [
+        name for name in element_families.get("vertical_steerers").members
+        # todp: need to clear that hack... preporessing of measurement data
+        # a good stage towards a consistent data set ?
+        if name.replace('M', 'P') in steerer_names
+    ]
+
+    h_steerers = h_steerers.sort(key=name_to_position)
+    v_steerers = v_steerers.sort(key=name_to_position)
+
+    s_h_steerers = [acc_desc.survey.get(name).value for name in steerer_names]
 
     # some steerers have not as many excitations as the others
-    difference_measurements_orbits_per_excitations_x = [
-        get_difference_measurements_orbits_for_magnet(m, o, plane=Planes.x)
-        for m, o in zip(measured_data.per_magnet, orbit_prediction.per_magnet)
+    difference_measurements_orbits_per_excitations_h_steerers_x = [
+        get_difference_measurements_orbits_for_magnet(
+            measured_data.get(magnet_name), orbit_prediction.get(magnet_name), plane=Planes.x
+        )
+        for magnet_name in h_steerers
+    ]
+
+    difference_measurements_orbits_per_excitations_h_steerers_y = [
+        get_difference_measurements_orbits_for_magnet(
+            measured_data.get(magnet_name), orbit_prediction.get(magnet_name), plane=Planes.y
+        )
+        for magnet_name in h_steerers
     ]
 
     # some steerers have not as many excitations as the others
@@ -107,11 +136,11 @@ def plot_forecast_difference_3D(
         Y.astype(np.float32),
         (x_max_excitation).astype(np.float32) * orbit_scale
     )
-    grid_y["y_mae"] = y_mae.ravel()
-    grid_y["y_mse"] = y_mse.ravel()
+    grid_y["mae"] = y_mae.ravel()
+    grid_y["mse"] = y_mse.ravel()
 
     pl = pv.Plotter(lighting="three lights")
-    pl.add_mesh(grid_x, cmap=colormaps["viridis"], show_scalar_bar=True)
+    pl.add_mesh(grid_x, cmap=colormaps["viridis"], show_scalar_bar=True, scalars="mse")
     pl.show_bounds(
         xtitle="bpms",
         ytitle="steerers",

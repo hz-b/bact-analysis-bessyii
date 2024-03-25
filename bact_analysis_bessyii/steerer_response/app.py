@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 
 from .bessyii_info_repos import (
     SpaceMappingCollectionBESSYII,
-    DeviceLocationServiceBESSYII,
+    DeviceLocationServiceBESSYII, BessyIIELementFamilies,
 )
 from .measured_data_cleaning import measurement_data_with_known_bpms_only
 from .model import OrbitPredictionCollection, AcceleratorDescription, SurveyPositions, Position
@@ -21,7 +21,6 @@ from ..model.analysis_util import (
 )
 from ..tools.preprocess_data import load_and_rearrange_data
 import tqdm
-
 
 
 def twiss_from_at() -> AcceleratorDescription:
@@ -43,6 +42,9 @@ def twiss_from_at() -> AcceleratorDescription:
 def main(uid, n_magnets=None):
     model = twiss_from_at()
     space_col = SpaceMappingCollectionBESSYII()
+    element_families = BessyIIELementFamilies(
+        [datum.name for datum in model.survey.positions]
+    )
 
     preprocessed_measurement = load_and_rearrange_data(
         uid,
@@ -87,6 +89,11 @@ def main(uid, n_magnets=None):
     preprocessed_measurement = measurement_data_with_known_bpms_only(
         preprocessed_measurement, bpm_names_known_model_measurement
     )
+
+    # What a hack ... need to get a consistent source
+    element_families.add_element_names([
+        datum.name.replace('P', 'M') for datum in preprocessed_measurement.measurement
+    ])
 
     fit_ready_data = FitReadyData(
         per_magnet=[
@@ -168,7 +175,7 @@ def main(uid, n_magnets=None):
     )
     # plot_steerer_response(fit_ready_data, orbit_prediction)
     plot_forecast_difference_3D(fit_ready_data, orbit_prediction, steerer_response_fit_2d,
-                                 model)
+                                model, element_families)
     try:
         plt.ion()
         plot_forecast_difference(fit_ready_data, orbit_prediction, steerer_response_fit_2d,
