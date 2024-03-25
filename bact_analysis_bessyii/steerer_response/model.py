@@ -2,6 +2,8 @@ import functools
 from dataclasses import dataclass
 from typing import Union, Sequence
 
+from dt4acc.model.planes import Planes
+
 from bact_analysis_bessyii.model.analysis_model import FitResult, index_for_datum_with_name
 from dt4acc.model.twiss import Twiss
 @dataclass
@@ -38,6 +40,15 @@ class OrbitPredictionForKicks:
     x: Sequence[OrbitPredictionForPlane]
     y: Sequence[OrbitPredictionForPlane]
     name: str
+
+    def get(self, plane: Planes) -> Sequence[OrbitPredictionForPlane]:
+        plane = Planes(plane)
+        if plane == Planes.x:
+            return self.x
+        elif plane == Planes.y:
+            return self.y
+        else:
+            raise AssertionError("Santiy check: should not end up here")
 
 
 @dataclass

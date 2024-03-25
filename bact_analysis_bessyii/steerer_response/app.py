@@ -1,6 +1,6 @@
 import numpy as np
-from bact_analysis_bessyii.tools.clean_data import fit_ready_data_per_magnet_clip_steps
-from bact_analysis_bessyii.tools.correct_bpm_naming import measurement_per_magnet_bpm_data_correct_name
+from ..tools.clean_data import fit_ready_data_per_magnet_clip_steps
+from ..tools.correct_bpm_naming import measurement_per_magnet_bpm_data_correct_name
 from matplotlib import pyplot as plt
 
 from .bessyii_info_repos import (
@@ -10,6 +10,7 @@ from .bessyii_info_repos import (
 from .measured_data_cleaning import measurement_data_with_known_bpms_only
 from .model import OrbitPredictionCollection, AcceleratorDescription, SurveyPositions, Position
 from .plot_matplotlib import plot_bpm_offsets, plot_forecast_difference
+from .plot_pyvista import plot_forecast_difference_3D
 from .prepare_plot_data import compute_prediction_per_magnet
 from .steerer_excitations import fit_steerer_response_one_separate_per_plane, fit_steerer_response_one_both_planes
 from ..bba.app import calib_repo
@@ -166,6 +167,8 @@ def main(uid, n_magnets=None):
         ]
     )
     # plot_steerer_response(fit_ready_data, orbit_prediction)
+    plot_forecast_difference_3D(fit_ready_data, orbit_prediction, steerer_response_fit_2d,
+                                 model)
     try:
         plt.ion()
         plot_forecast_difference(fit_ready_data, orbit_prediction, steerer_response_fit_2d,

@@ -1,7 +1,10 @@
+import enum
 import functools
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Sequence, Optional
+from typing import Sequence, Optional, Union
+
+from dt4acc.model.planes import Planes
 from numpy.typing import ArrayLike
 import numpy as np
 
@@ -195,6 +198,15 @@ class FitReadyDataPerMagnet:
     # towards delta or rms
     # quality: str
 
+    def get(self, plane: Planes):
+        plane = Planes(plane)
+        if plane == Planes.x:
+            return self.x
+        elif plane == Planes.y:
+            return self.y
+        else:
+            raise AssertionError("Sanity Error, should not end here")
+
 
 @dataclass(frozen=True)
 class FitReadyData:
@@ -274,6 +286,14 @@ class FitResult:
     #: these data are rather large, should we always store them?
     input: Optional[FitInput]
 
+
+class ErrorType(enum.Enum):
+    #: mean square error
+    mse="mse"
+    #: mean absolute error
+    mae="mae"
+
+
 @dataclass
 class ErrorEstimates:
     """estimates of fit quality
@@ -284,6 +304,15 @@ class ErrorEstimates:
     """
     mean_square_error: Sequence[float]
     mean_absolute_error: Sequence[float]
+
+    def get(self, error_type: ErrorType) -> Sequence[float]:
+        error_type = ErrorType(error_type)
+        if error_type == ErrorType.mse:
+            return self.mean_square_error
+        elif error_type == ErrorType.mae:
+            return self.mean_absolute_error
+        else:
+            raise AssertionError(f"don't know error Type: {error_type}")
 
 
 @dataclass
@@ -308,6 +337,15 @@ class MagnetEstimatedAngles:
     name: str
     x: EstimatedAngleForPlane
     y: EstimatedAngleForPlane
+
+    def get(self, plane: Planes) -> EstimatedAngleForPlane:
+        plane = Planes(plane)
+        if plane == Planes.x:
+            return self.x
+        elif plane == Planes.y:
+            return self.y
+        else:
+            raise AssertionError("should not end up here!")
 
 
 @dataclass
