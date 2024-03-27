@@ -5,16 +5,25 @@ from matplotlib import pyplot as plt
 
 from .bessyii_info_repos import (
     SpaceMappingCollectionBESSYII,
-    DeviceLocationServiceBESSYII, BessyIIELementFamilies,
+    DeviceLocationServiceBESSYII,
+    BessyIIELementFamilies,
 )
 from .measured_data_cleaning import measurement_data_with_known_bpms_only
-from .model import OrbitPredictionCollection, AcceleratorDescription, SurveyPositions, Position
+from .model import (
+    OrbitPredictionCollection,
+    AcceleratorDescription,
+    SurveyPositions,
+    Position,
+)
 from .plot_matplotlib import plot_bpm_offsets, plot_forecast_difference
-from .plot_pyvista import plot_forecast_difference_3D
+from .plot_pyvista import plot_forecast_difference_3d
 from .prepare_plot_data import compute_prediction_per_magnet
-from .steerer_excitations import fit_steerer_response_one_separate_per_plane, fit_steerer_response_one_both_planes
+from .steerer_excitations import (
+    fit_steerer_response_one_separate_per_plane,
+    fit_steerer_response_one_both_planes,
+)
 from ..bba.app import calib_repo
-from ..model.analysis_model import FitReadyData, MeasurementData, EstimatedAngles
+from ..model.analysis_model import FitReadyData, MeasurementData, EstimatedAngles, MeasurementPerMagnet
 from ..model.analysis_util import (
     flatten_for_fit,
     measurement_per_magnet_bpms_raw_data_to_m,
@@ -26,6 +35,7 @@ import tqdm
 def twiss_from_at() -> AcceleratorDescription:
     from dt4acc.resources.bessy2_sr_reflat import bessy2Lattice
     from dt4acc.calculator.pyat_calculator import PyAtTwissCalculator
+
     acc = bessy2Lattice()
     twiss_calculator = PyAtTwissCalculator(acc)
     twiss = twiss_calculator.calculate()
@@ -34,8 +44,10 @@ def twiss_from_at() -> AcceleratorDescription:
     return AcceleratorDescription(
         twiss=twiss,
         survey=SurveyPositions(
-            positions=[Position(value=t_s, name=name)
-                       for t_s, name in zip(s, twiss.names)])
+            positions=[
+                Position(value=t_s, name=name) for t_s, name in zip(s, twiss.names)
+            ]
+        ),
     )
 
 
@@ -52,6 +64,19 @@ def main(uid, n_magnets=None):
         pv_for_applied_current="mux_sel_p_setpoint",
         pv_for_selected_magnet="mux_sel_selected",
         read_from_file=True,
+    )
+
+    # measurement was made using power converter names: we work switching power converters
+    # but now it is per magnet: so the name should be magnet names
+    preprocessed_measurement = MeasurementData(
+        measurement=[
+            MeasurementPerMagnet(per_magnet=m.per_magnet, name=m.name.replace('P', 'M'))
+            for m in tqdm.tqdm(
+                preprocessed_measurement.measurement,
+                total=len(preprocessed_measurement.measurement),
+                desc="rename bpm raw   ",
+            )
+        ]
     )
 
     if True:
@@ -80,20 +105,26 @@ def main(uid, n_magnets=None):
     # reduce ourselves to the set of bpms that are known to the
     # model and the ring
     bpm_names_of_model = [name for name in model.twiss.names if name[:3] == "BPM"]
-    bpm_names_of_measurement = [bpm['name'] for bpm in preprocessed_measurement.measurement[0].per_magnet[0].bpm]
+    bpm_names_of_measurement = [
+        bpm["name"] for bpm in preprocessed_measurement.measurement[0].per_magnet[0].bpm
+    ]
     # could use set intersection: I am not sure since when the
     # set guarantees that the element order is conserved
     # I'd like to keep the elements the way they are in the model
     # as these are presumably in a consecutive order along the ring
-    bpm_names_known_model_measurement = [bpm_name for bpm_name in bpm_names_of_model if bpm_name in bpm_names_of_measurement]
+    bpm_names_known_model_measurement = [
+        bpm_name
+        for bpm_name in bpm_names_of_model
+        if bpm_name in bpm_names_of_measurement
+    ]
     preprocessed_measurement = measurement_data_with_known_bpms_only(
         preprocessed_measurement, bpm_names_known_model_measurement
     )
 
     # What a hack ... need to get a consistent source
-    element_families.add_element_names([
-        datum.name.replace('P', 'M') for datum in preprocessed_measurement.measurement
-    ])
+    element_families.add_element_names(
+        [datum.name.replace("P", "M") for datum in preprocessed_measurement.measurement]
+    )
 
     fit_ready_data = FitReadyData(
         per_magnet=[
@@ -116,8 +147,11 @@ def main(uid, n_magnets=None):
         per_magnet=[
             fit_ready_data_per_magnet_clip_steps(for_magnet, steps)
             for for_magnet in tqdm.tqdm(
-                fit_ready_data.per_magnet, total=len(fit_ready_data.per_magnet), desc="only allowed steps"
-            )]
+                fit_ready_data.per_magnet,
+                total=len(fit_ready_data.per_magnet),
+                desc="only allowed steps",
+            )
+        ]
     )
 
     name_pos_service = DeviceLocationServiceBESSYII()
@@ -164,22 +198,26 @@ def main(uid, n_magnets=None):
                 magnet_name=measurement.name,
             )
             for measurement, kick_values_from_fit in tqdm.tqdm(
-                zip(
-                    fit_ready_data.per_magnet,
-                    steerer_response_fit.per_magnet
-                ),
+                zip(fit_ready_data.per_magnet, steerer_response_fit.per_magnet),
                 total=len(fit_ready_data.per_magnet),
                 desc="compute forecast",
             )
         ]
     )
     # plot_steerer_response(fit_ready_data, orbit_prediction)
-    plot_forecast_difference_3D(fit_ready_data, orbit_prediction, steerer_response_fit_2d,
-                                model, element_families)
+    plot_forecast_difference_3d(
+        fit_ready_data,
+        orbit_prediction,
+        steerer_response_fit_2d,
+        model,
+        element_families,
+        name_pos_service=name_pos_service
+    )
     try:
         plt.ion()
-        plot_forecast_difference(fit_ready_data, orbit_prediction, steerer_response_fit_2d,
-                                 model)
+        plot_forecast_difference(
+            fit_ready_data, orbit_prediction, steerer_response_fit_2d, model
+        )
         plot_bpm_offsets(fit_ready_data, steerer_response_fit_2d, model)
     except Exception:
         plt.ioff()

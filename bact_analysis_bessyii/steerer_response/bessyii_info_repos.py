@@ -147,6 +147,9 @@ class DeviceLocationServiceBESSYII(DeviceLocationServiceInterface):
         """a poor man's implementation based on Heuristics"""
         if check_bessyii_steerer_name(device_name):
             return self.steerer_location(device_name)
+        # BPM device and position names are identical
+        if device_name[:3] == "BPM":
+            return device_name
         # need to implement further
         assert 0
 
