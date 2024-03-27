@@ -12,8 +12,8 @@ from ..model.analysis_model import (
 )
 from dt4acc.model.twiss import Twiss
 
-from ..model.calc import get_magnet_estimated_angle
-from ..model.calc_both_planes import get_magnet_estimated_angles_both_planes
+from bact_analysis_bessyii.business_logic.calc import get_magnet_estimated_angle
+from bact_analysis_bessyii.business_logic.calc_both_planes import get_magnet_estimated_angles_both_planes
 
 
 def fit_steerer_response_one_separate_per_plane(

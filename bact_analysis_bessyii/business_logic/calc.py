@@ -3,11 +3,11 @@ import logging
 
 from dt4acc.model.twiss import Twiss
 
-from ..business_logic.obsolete import (
+from bact_analysis_bessyii.business_logic.obsolete import (
     get_polarity_by_magnet_name,
     get_length_by_magnet_name,
 )
-from ..model.analysis_model import (
+from bact_analysis_bessyii.model.analysis_model import (
     MeasuredValues,
     DistortedOrbitUsedForKick,
     EstimatedAngleForPlane,
@@ -16,7 +16,7 @@ from ..model.analysis_model import (
     MagnetInfo,
     ErrorEstimates, FitReadyDataPerMagnet, FitInput,
 )
-from ..model.analysis_util import get_data_as_lists, flatten_for_fit
+from bact_analysis_bessyii.model.analysis_util import get_data_as_lists, flatten_for_fit
 from bact_math_utils.distorted_orbit import closed_orbit_distortion
 from bact_math_utils.linear_fit import x_to_cov, cov_to_std
 from bact_math_utils.stats import mean_square_error, mean_absolute_error

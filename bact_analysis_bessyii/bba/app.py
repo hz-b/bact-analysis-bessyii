@@ -10,7 +10,7 @@ from ..tools.preprocess_data import load_and_rearrange_data
 from ..model.analysis_model import (MeasurementData, MeasurementPerMagnet, EstimatedAngles,
                                                         FitReadyData)
 from ..model.analysis_util import (measurement_per_magnet_bpms_raw_data_to_m, flatten_for_fit, )
-from ..model.calc import get_magnet_estimated_angle
+from bact_analysis_bessyii.business_logic.calc import get_magnet_estimated_angle
 from ..tools.correct_bpm_naming import measurement_per_magnet_bpm_data_correct_name
 from bact_bessyii_mls_ophyd.db.mongo_repository import InitializeMongo
 from .bpm_repo import BPMCalibrationsRepositoryBESSYII

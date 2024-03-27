@@ -1,3 +1,5 @@
+from typing import Sequence
+
 import numpy as np
 from numpy.typing import ArrayLike
 from .model import (
@@ -6,6 +8,7 @@ from .model import (
     FitResultAllMagnets,
     OrbitResponseMatricesPerSteererPlane,
 )
+from ..interfaces.element_families import ElementFamilies
 
 
 def extract_response_matrices(
@@ -60,11 +63,10 @@ def extract_response_matrices(
 
 def extract_response_matrices_per_steerers(
     data: FitResultAllMagnets,
+        *,
+    horizontal_steerer_names: Sequence[str],
+    vertical_steerer_names: Sequence[str],
 ) -> OrbitResponseMatricesPerSteererPlane:
-    horizontal_steerer_names = [
-        datum.name for datum in data.data if datum.name[0] == "H"
-    ]
-    vertical_steerer_names = [datum.name for datum in data.data if datum.name[0] == "V"]
 
     return OrbitResponseMatricesPerSteererPlane(
         horizontal_steerers=extract_response_matrices(data, horizontal_steerer_names),

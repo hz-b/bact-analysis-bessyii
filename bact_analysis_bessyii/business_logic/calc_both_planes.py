@@ -6,12 +6,12 @@ from dt4acc.model.planes import Planes
 from dt4acc.model.twiss import Twiss
 
 from bact_math_utils.stats import mean_square_error, mean_absolute_error
-from .calc import angle
+from bact_analysis_bessyii.business_logic.calc import angle
 from bact_math_utils.distorted_orbit import closed_orbit_distortion
-from .analysis_util import get_data_as_lists
-from ..model.analysis_model import MagnetEstimatedAngles, FitReadyDataPerMagnet, DistortedOrbitUsedForKick, \
+from bact_analysis_bessyii.model.analysis_util import get_data_as_lists
+from bact_analysis_bessyii.model.analysis_model import MagnetEstimatedAngles, FitReadyDataPerMagnet, DistortedOrbitUsedForKick, \
     ValueForElement, DistortedOrbitUsedForKickTransversalPlanes, TransversePlanesValuesForElement, EstimatedAngles, \
-    MeasuredValues, FitResult, ErrorEstimates, EstimatedAngleForPlane, FitInput
+    MeasuredValues, FitResult, ErrorEstimates, EstimatedAngleForPlane
 
 logger = logging.getLogger("bact-analysis-bessyii")
 
