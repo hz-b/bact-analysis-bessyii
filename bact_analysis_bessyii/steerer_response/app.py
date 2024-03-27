@@ -23,7 +23,12 @@ from .steerer_excitations import (
     fit_steerer_response_one_both_planes,
 )
 from ..bba.app import calib_repo
-from ..model.analysis_model import FitReadyData, MeasurementData, EstimatedAngles, MeasurementPerMagnet
+from ..model.analysis_model import (
+    FitReadyData,
+    MeasurementData,
+    EstimatedAngles,
+    MeasurementPerMagnet,
+)
 from ..model.analysis_util import (
     flatten_for_fit,
     measurement_per_magnet_bpms_raw_data_to_m,
@@ -70,7 +75,7 @@ def main(uid, n_magnets=None):
     # but now it is per magnet: so the name should be magnet names
     preprocessed_measurement = MeasurementData(
         measurement=[
-            MeasurementPerMagnet(per_magnet=m.per_magnet, name=m.name.replace('P', 'M'))
+            MeasurementPerMagnet(per_magnet=m.per_magnet, name=m.name.replace("P", "M"))
             for m in tqdm.tqdm(
                 preprocessed_measurement.measurement,
                 total=len(preprocessed_measurement.measurement),
@@ -208,10 +213,9 @@ def main(uid, n_magnets=None):
     plot_forecast_difference_3d(
         fit_ready_data,
         orbit_prediction,
-        steerer_response_fit_2d,
         model,
         element_families,
-        name_pos_service=name_pos_service
+        name_pos_service=name_pos_service,
     )
     try:
         plt.ion()
