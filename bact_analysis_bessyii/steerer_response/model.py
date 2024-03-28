@@ -2,10 +2,12 @@ import functools
 from dataclasses import dataclass
 from typing import Union, Sequence
 
-from dt4acc.model.planes import Planes
+from ..model.planes import Planes
+from ..model.twiss import Twiss
 
 from bact_analysis_bessyii.model.analysis_model import FitResult, index_for_datum_with_name
-from dt4acc.model.twiss import Twiss
+
+
 @dataclass
 class Position:
     value: float

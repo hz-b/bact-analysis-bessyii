@@ -1,6 +1,7 @@
 import numpy as np
 
 from .bessyii_lattice import twiss_from_at
+from ..tools.bpm_repo import BPMCalibrationsRepositoryBESSYII
 from ..tools.clean_data import fit_ready_data_per_magnet_clip_steps
 from ..tools.correct_bpm_naming import measurement_per_magnet_bpm_data_correct_name
 from matplotlib import pyplot as plt
@@ -24,7 +25,7 @@ from .steerer_excitations import (
     fit_steerer_response_one_separate_per_plane,
     fit_steerer_response_one_both_planes,
 )
-from ..bba.app import calib_repo
+
 from ..model.analysis_model import (
     FitReadyData,
     MeasurementData,
@@ -61,7 +62,6 @@ def main(uid, n_magnets=None):
             MeasurementPerMagnet(per_magnet=m.per_magnet, name=m.name.replace("P", "M"))
             for m in tqdm.tqdm(
                 preprocessed_measurement.measurement,
-                total=len(preprocessed_measurement.measurement),
                 desc="rename bpm raw   ",
             )
         ]
@@ -74,17 +74,15 @@ def main(uid, n_magnets=None):
                 measurement_per_magnet_bpm_data_correct_name(m)
                 for m in tqdm.tqdm(
                     preprocessed_measurement.measurement,
-                    total=len(preprocessed_measurement.measurement),
                     desc="rename bpm raw   ",
                 )
             ]
         )
     preprocessed_measurement = MeasurementData(
         measurement=[
-            measurement_per_magnet_bpms_raw_data_to_m(m, calib_repo=calib_repo)
+            measurement_per_magnet_bpms_raw_data_to_m(m, calib_repo=BPMCalibrationsRepositoryBESSYII())
             for m in tqdm.tqdm(
                 preprocessed_measurement.measurement,
-                total=len(preprocessed_measurement.measurement),
                 desc="conv bpm raw -> m",
             )
         ]
@@ -121,8 +119,7 @@ def main(uid, n_magnets=None):
             )
             for measurement in tqdm.tqdm(
                 preprocessed_measurement.measurement,
-                desc="prepare / rearrange  data for fit: ",
-                total=(len(preprocessed_measurement.measurement)),
+                desc="rearrange  data for fit: ",
             )
         ]
     )
@@ -136,7 +133,6 @@ def main(uid, n_magnets=None):
             fit_ready_data_per_magnet_clip_steps(for_magnet, steps)
             for for_magnet in tqdm.tqdm(
                 fit_ready_data.per_magnet,
-                total=len(fit_ready_data.per_magnet),
                 desc="only allowed steps",
             )
         ]
@@ -153,8 +149,7 @@ def main(uid, n_magnets=None):
             )
             for data in tqdm.tqdm(
                 fit_ready_data.per_magnet,
-                total=len(fit_ready_data.per_magnet),
-                desc="fitting steerer excitations (both planes)",
+                desc="fitting steerer excitations (both planes)"
             )
         ],
         md=None,
@@ -170,7 +165,6 @@ def main(uid, n_magnets=None):
             )
             for data in tqdm.tqdm(
                 fit_ready_data.per_magnet,
-                total=len(fit_ready_data.per_magnet),
                 desc="fitting steerer excitations",
             )
         ],
@@ -185,13 +179,11 @@ def main(uid, n_magnets=None):
                 pos_names_for_measurement=bpm_names_known_model_measurement,
                 magnet_name=measurement.name,
             )
-            for measurement, kick_values_from_fit in tqdm.tqdm(
-                zip(fit_ready_data.per_magnet, steerer_response_fit.per_magnet),
-                total=len(fit_ready_data.per_magnet),
-                desc="compute forecast",
-            )
+            for measurement, kick_values_from_fit in
+                zip(tqdm.tqdm(fit_ready_data.per_magnet, desc="compute forecast",), steerer_response_fit.per_magnet)
         ]
     )
+
     # plot_steerer_response(fit_ready_data, orbit_prediction)
     plot_forecast_difference_3d(
         fit_ready_data,

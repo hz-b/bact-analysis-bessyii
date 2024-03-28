@@ -1,7 +1,7 @@
 import copy
 import logging
 
-from dt4acc.model.twiss import Twiss
+from ..model.twiss import Twiss
 
 from bact_analysis_bessyii.business_logic.obsolete import (
     get_polarity_by_magnet_name,

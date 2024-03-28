@@ -2,32 +2,41 @@ import logging
 from typing import Sequence
 
 import numpy as np
-from dt4acc.model.planes import Planes
-from dt4acc.model.twiss import Twiss
 
 from bact_math_utils.stats import mean_square_error, mean_absolute_error
-from bact_analysis_bessyii.business_logic.calc import angle
 from bact_math_utils.distorted_orbit import closed_orbit_distortion
-from bact_analysis_bessyii.model.analysis_util import get_data_as_lists
-from bact_analysis_bessyii.model.analysis_model import MagnetEstimatedAngles, FitReadyDataPerMagnet, DistortedOrbitUsedForKick, \
-    ValueForElement, DistortedOrbitUsedForKickTransversalPlanes, TransversePlanesValuesForElement, EstimatedAngles, \
-    MeasuredValues, FitResult, ErrorEstimates, EstimatedAngleForPlane
+from ..business_logic.calc import angle
+from ..model.analysis_util import get_data_as_lists
+from ..model.analysis_model import (
+    MagnetEstimatedAngles,
+    FitReadyDataPerMagnet,
+    DistortedOrbitUsedForKick,
+    ValueForElement,
+    DistortedOrbitUsedForKickTransversalPlanes,
+    TransversePlanesValuesForElement,
+    EstimatedAngles,
+    MeasuredValues,
+    FitResult,
+    ErrorEstimates,
+    EstimatedAngleForPlane,
+)
+from ..model.planes import Planes
+from ..model.twiss import Twiss
 
 logger = logging.getLogger("bact-analysis-bessyii")
 
 
 def get_magnet_estimated_angles_both_planes(
-        fit_ready_data : FitReadyDataPerMagnet,
-        pos_name: str,
-        selected_model : Twiss,
-        t_theta:float,
-        str: str="pos",
-        rms: str="rms"
-)-> MagnetEstimatedAngles:
+    fit_ready_data: FitReadyDataPerMagnet,
+    pos_name: str,
+    selected_model: Twiss,
+    t_theta: float,
+    str: str = "pos",
+    rms: str = "rms",
+) -> MagnetEstimatedAngles:
     """Fit both planes at once: e.g. the exciation of a steerer
 
-    Args:uivalent_angle",
-        input=Fi
+    Args:
         fit_ready_data:
         pos_name:
         selected_model:
@@ -46,23 +55,31 @@ def get_magnet_estimated_angles_both_planes(
 
     dist_orbs = DistortedOrbitUsedForKickTransversalPlanes(
         delta=[
-            TransversePlanesValuesForElement(x=x, y=y) for x, y in zip(*[
-                estimate_orbit_for_plane(selected_model, pos_name, plane, t_theta).delta
-                for plane in (Planes.x, Planes.y)
-            ])
+            TransversePlanesValuesForElement(x=x, y=y)
+            for x, y in zip(
+                *[
+                    estimate_orbit_for_plane(
+                        selected_model, pos_name, plane, t_theta
+                    ).delta
+                    for plane in (Planes.x, Planes.y)
+                ]
+            )
         ],
-        kick_strength=t_theta
+        kick_strength=t_theta,
     )
 
     eax, eay = derive_angles_both_planes(
         measured_data_x=fit_ready_data.x,
         measured_data_y=fit_ready_data.y,
         excitations=fit_ready_data.excitations,
-        orbits=dist_orbs)
+        orbits=dist_orbs,
+    )
     return MagnetEstimatedAngles(x=eax, y=eay, name=name)
 
 
-def estimate_orbit_for_plane(selected_model : Twiss, pos_name: str, plane: Planes, t_theta:float) -> DistortedOrbitUsedForKick:
+def estimate_orbit_for_plane(
+    selected_model: Twiss, pos_name: str, plane: Planes, t_theta: float
+) -> DistortedOrbitUsedForKick:
     dist_orb = closed_orbit_distortion(
         selected_model.get_plane(plane).beta,
         selected_model.get_plane(plane).nu * 2 * np.pi,
@@ -74,7 +91,10 @@ def estimate_orbit_for_plane(selected_model : Twiss, pos_name: str, plane: Plane
 
     return DistortedOrbitUsedForKick(
         kick_strength=t_theta,
-        delta=[ValueForElement(val=val, name=name) for name, val in zip(selected_model.names, dist_orb)]
+        delta=[
+            ValueForElement(val=val, name=name)
+            for name, val in zip(selected_model.names, dist_orb)
+        ],
     )
 
 
@@ -108,15 +128,15 @@ def derive_angles_both_planes(
     excitations = np.asarray(excitations)
 
     # plane x and y do not necessarily consist of the same set of point
-    orbit_x_at_measurement_points = np.asarray([
-        orbits.at_position(datum.name).x.val for datum in measured_data_x[0].data
-    ])
-    orbit_y_at_measurement_points = np.asarray([
-        orbits.at_position(datum.name).y.val for datum in measured_data_y[0].data
-    ])
-    orbit_xy_at_measurement_points = np.hstack([
-        orbit_x_at_measurement_points, orbit_y_at_measurement_points
-    ])
+    orbit_x_at_measurement_points = np.asarray(
+        [orbits.at_position(datum.name).x.val for datum in measured_data_x[0].data]
+    )
+    orbit_y_at_measurement_points = np.asarray(
+        [orbits.at_position(datum.name).y.val for datum in measured_data_y[0].data]
+    )
+    orbit_xy_at_measurement_points = np.hstack(
+        [orbit_x_at_measurement_points, orbit_y_at_measurement_points]
+    )
     if weights is None:
         sqw = None
     else:
@@ -148,7 +168,9 @@ def derive_angles_both_planes(
 
         # step 2: put the scaled orbit in place
         # Scale independents matrix with weights
-        sorb = excitations[:, np.newaxis] * orbit_xy_at_measurement_points[np.newaxis, :]
+        sorb = (
+            excitations[:, np.newaxis] * orbit_xy_at_measurement_points[np.newaxis, :]
+        )
         if sqw is not None:
             sorb = sorb * sqw
         A_prep[:, :, -1] = sorb
@@ -200,7 +222,7 @@ def derive_angles_both_planes(
         #: todo ... need to beef it up to separate it for the x any y part
         # furthermore should contain all input
         # FitInput(A=A_prep, b=b)
-        input=None
+        input=None,
     )
 
     bpm_offsets_x = [
@@ -210,9 +232,10 @@ def derive_angles_both_planes(
     # last one is the equivalent angle
     bpm_offsets_y = [
         FitResult(value=v, std=s, name=datum.name, input=None)
-        for v, s, datum in zip(p[n_orb_x:-1], p_std[n_orb_x:-1], measured_data_y[0].data)
+        for v, s, datum in zip(
+            p[n_orb_x:-1], p_std[n_orb_x:-1], measured_data_y[0].data
+        )
     ]
-
 
     # calculate estimates for fit: mse / mae
     # first scale the prep matrix using parameters
@@ -224,34 +247,38 @@ def derive_angles_both_planes(
     # one per excitation
 
     estimated_angle_x = EstimatedAngleForPlane(
-            orbit=DistortedOrbitUsedForKick(
-                delta=[
-                    ValueForElement(val=val, name=datum.name)
-                    for val, datum in zip(orbit_x_at_measurement_points, measured_data_x[0].data)
-                ],
-                kick_strength=orbits.kick_strength
-            ),
-            equivalent_angle=equivalent_angle,
-            bpm_offsets=bpm_offsets_x,
-            error_estimates=ErrorEstimates(
-                mean_square_error=mean_square_error(dv_x, axis=-1).tolist(),
-                mean_absolute_error=mean_absolute_error(dv_x, axis=-1).tolist(),
-            )
-        )
+        orbit=DistortedOrbitUsedForKick(
+            delta=[
+                ValueForElement(val=val, name=datum.name)
+                for val, datum in zip(
+                    orbit_x_at_measurement_points, measured_data_x[0].data
+                )
+            ],
+            kick_strength=orbits.kick_strength,
+        ),
+        equivalent_angle=equivalent_angle,
+        bpm_offsets=bpm_offsets_x,
+        error_estimates=ErrorEstimates(
+            mean_square_error=mean_square_error(dv_x, axis=-1).tolist(),
+            mean_absolute_error=mean_absolute_error(dv_x, axis=-1).tolist(),
+        ),
+    )
     estimated_angle_y = EstimatedAngleForPlane(
-            orbit=DistortedOrbitUsedForKick(
-                delta=[
-                    ValueForElement(val=val, name=datum.name)
-                    for val, datum in zip(orbit_y_at_measurement_points, measured_data_y[0].data)
-                ],
-                kick_strength=orbits.kick_strength
-            ),
-            equivalent_angle=equivalent_angle,
-            error_estimates=ErrorEstimates(
-                mean_square_error=mean_square_error(dv_x, axis=-1).tolist(),
-                mean_absolute_error=mean_absolute_error(dv_x, axis=-1).tolist(),
-            ),
-            bpm_offsets=bpm_offsets_y
-        )
+        orbit=DistortedOrbitUsedForKick(
+            delta=[
+                ValueForElement(val=val, name=datum.name)
+                for val, datum in zip(
+                    orbit_y_at_measurement_points, measured_data_y[0].data
+                )
+            ],
+            kick_strength=orbits.kick_strength,
+        ),
+        equivalent_angle=equivalent_angle,
+        error_estimates=ErrorEstimates(
+            mean_square_error=mean_square_error(dv_x, axis=-1).tolist(),
+            mean_absolute_error=mean_absolute_error(dv_x, axis=-1).tolist(),
+        ),
+        bpm_offsets=bpm_offsets_y,
+    )
 
     return estimated_angle_x, estimated_angle_y

@@ -4,8 +4,8 @@ from typing import Sequence
 import matplotlib.pyplot as plt
 import numpy as np
 from bact_math_utils.misc import EnumerateUniqueEverSeen
-from dt4acc.model.twiss import Twiss
 
+from ..model.twiss import Twiss
 from .model import OrbitPredictionForKicks, OrbitPredictionCollection, AcceleratorDescription
 from ..model.analysis_model import EstimatedAngles, FitReadyDataPerMagnet, FitReadyData, FitResult, \
     MagnetEstimatedAngles, MeasuredValues

@@ -5,7 +5,7 @@ from numpy.typing import ArrayLike
 import pyvista as pv
 from matplotlib import colormaps
 
-from dt4acc.model.planes import Planes
+from ..model.planes import Planes
 
 from .model import (
     OrbitPredictionCollection,

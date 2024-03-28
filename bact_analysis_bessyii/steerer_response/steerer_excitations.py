@@ -10,7 +10,7 @@ from ..model.analysis_model import (
     FitReadyDataPerMagnet,
     MagnetEstimatedAngles
 )
-from dt4acc.model.twiss import Twiss
+from ..model.twiss import Twiss
 
 from bact_analysis_bessyii.business_logic.calc import get_magnet_estimated_angle
 from bact_analysis_bessyii.business_logic.calc_both_planes import get_magnet_estimated_angles_both_planes

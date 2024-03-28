@@ -13,7 +13,7 @@ from ..model.analysis_util import (measurement_per_magnet_bpms_raw_data_to_m, fl
 from bact_analysis_bessyii.business_logic.calc import get_magnet_estimated_angle
 from ..tools.correct_bpm_naming import measurement_per_magnet_bpm_data_correct_name
 from bact_bessyii_mls_ophyd.db.mongo_repository import InitializeMongo
-from .bpm_repo import BPMCalibrationsRepositoryBESSYII
+from bact_analysis_bessyii.tools.bpm_repo import BPMCalibrationsRepositoryBESSYII
 
 logger = logging.getLogger("bact-analysis-bessyii")
 

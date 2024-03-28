@@ -1,7 +1,7 @@
 import re
 
-from ..model.analysis_model import BPMCalibration, BPMCalibrationPlane
-from ..model.analysis_util import BPMCalibrationsRepository
+from bact_analysis_bessyii.model.analysis_model import BPMCalibration, BPMCalibrationPlane
+from bact_analysis_bessyii.model.analysis_util import BPMCalibrationsRepository
 from bact_bessyii_ophyd.devices.pp.bpm.bpm_parameters import create_bpm_config
 import functools
 import logging

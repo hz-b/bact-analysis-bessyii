@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 from typing import Sequence, Optional, Union
 
-from dt4acc.model.planes import Planes
+from ..model.planes import Planes
 from numpy.typing import ArrayLike
 import numpy as np
 
