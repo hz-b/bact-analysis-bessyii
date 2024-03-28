@@ -6,8 +6,9 @@ import numpy as np
 from bact_math_utils.misc import EnumerateUniqueEverSeen
 
 from ..model.twiss import Twiss
-from .model import OrbitPredictionForKicks, OrbitPredictionCollection, AcceleratorDescription
-from ..model.analysis_model import EstimatedAngles, FitReadyDataPerMagnet, FitReadyData, FitResult, \
+from ..model.orbit_prediciton import OrbitPredictionForKicks, OrbitPredictionCollection
+from ..model.accelerator_model import AcceleratorDescription
+from ..model.analysis_model import EstimatedAngles, FitReadyDataPerMagnet, FitReadyData, \
     MagnetEstimatedAngles, MeasuredValues
 
 

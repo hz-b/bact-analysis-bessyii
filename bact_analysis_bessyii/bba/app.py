@@ -103,7 +103,7 @@ def main(uid):
 
     t_theta = 1e-5  # 10 urad ... close to an average kick
     estimated_angles = EstimatedAngles(per_magnet=[  # can select pos="pos_raw" and rms="rms_raw"
-        get_magnet_estimated_angle(fit_data, selected_model, t_theta, pos="pos", rms="rms") for fit_data in
+        get_magnet_estimated_angle(fit_data, fit_data.name, selected_model=selected_model, t_theta=t_theta, pos="pos", rms="rms") for fit_data in
         tqdm.tqdm(fit_ready_data.per_magnet, desc="est. equiv. angle: ", total=(len(fit_ready_data.per_magnet)), )],
         md="nothing", )
     # Connect to MongoDB

@@ -1,6 +1,6 @@
 import numpy as np
 
-from bact_analysis_bessyii.steerer_response.model import AcceleratorDescription, Position, SurveyPositions
+from ..model.accelerator_model import AcceleratorDescription, Position, SurveyPositions
 
 
 def twiss_from_at() -> AcceleratorDescription:

@@ -8,7 +8,7 @@ import pyvista as pv
 from matplotlib import colormaps
 
 from ..interfaces.device_location import DeviceLocationServiceInterface
-from ..steerer_response.model import AcceleratorDescription
+from ..model.accelerator_model import AcceleratorDescription
 
 
 def plot_orms(

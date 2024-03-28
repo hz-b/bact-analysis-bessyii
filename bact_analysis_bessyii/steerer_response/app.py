@@ -12,12 +12,12 @@ from .bessyii_info_repos import (
     BessyIIELementFamilies,
 )
 from .measured_data_cleaning import measurement_data_with_known_bpms_only
-from .model import (
-    OrbitPredictionCollection,
+from ..model.accelerator_model import (
     AcceleratorDescription,
     SurveyPositions,
-    Position,
+    Position
 )
+from ..model.orbit_prediciton import OrbitPredictionCollection
 from .plot_matplotlib import plot_bpm_offsets, plot_forecast_difference
 from .plot_pyvista import plot_forecast_difference_3d
 from .prepare_plot_data import compute_prediction_per_magnet
@@ -67,7 +67,7 @@ def main(uid, n_magnets=None):
         ]
     )
 
-    if True:
+    if False:
         # correct the bpm names
         preprocessed_measurement = MeasurementData(
             measurement=[

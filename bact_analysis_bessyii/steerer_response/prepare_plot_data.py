@@ -2,20 +2,14 @@ from typing import Sequence
 
 import numpy as np
 
-from .model import (
+from ..model.orbit_prediciton import (
     OrbitPredictionForPlane,
-    OrbitPredictionForKicks,
-    OrbitPredictionCollection,
+    OrbitPredictionForKicks
 )
 from ..model.analysis_model import (
-    MeasurementData,
-    EstimatedAngles,
     MagnetEstimatedAngles,
-    FitReadyData,
-    FitReadyDataPerMagnet,
-    MeasuredValues,
     EstimatedAngleForPlane,
-    FitResult,
+    FitResult
 )
 
 
