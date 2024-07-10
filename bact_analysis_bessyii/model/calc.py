@@ -234,7 +234,7 @@ def derive_angle(
     # prepare the left hand side of the fit ... 2 steps
     # step 1
     # dimensions: step, pos, parameter
-    A_prep = np.zeros([n_exc, n_orb, n_orb + 1], dtype=np.float_)
+    A_prep = np.zeros([n_exc, n_orb, n_orb + 1], dtype=float)
     # mark the data appropriately to fit the beam position monitor offsets
     idx = np.arange(n_orb)
     # fit angle is put at the last position
