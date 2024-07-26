@@ -55,9 +55,12 @@ def get_magnet_names(preprocessed_measurement):
 calib_repo = BPMCalibrationsRepositoryBESSYII()
 
 
-def main(uid):
+def main(uid, *, read_from_file=False, catalog_name=""):
     preprocessed_measurement = load_and_rearrange_data(
-        uid, prefix="bba-measured", read_from_file=True,
+        uid,
+        read_from_file=read_from_file,
+        catalog_name=catalog_name,
+        prefix="bba-measured",
         pv_for_applied_current="mux_power_converter_setpoint",
         pv_for_selected_magnet = "mux_selected_multiplexer_readback",
     )
