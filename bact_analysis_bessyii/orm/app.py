@@ -10,13 +10,14 @@ from matplotlib import pyplot as plt
 import tqdm
 
 
-def main(uid):
+def main(uid, *, read_from_file=False, catalog_name=""):
     preprocessed_measurement = load_and_rearrange_data(
         uid,
+        read_from_file=read_from_file,
+        catalog_name=catalog_name,
         prefix="bessyii-orbit-response-measured",
         pv_for_applied_current="mux_sel_p_setpoint",
         pv_for_selected_magnet="mux_sel_selected",
-        read_from_file=True,
     )
     fit_ready_data = FitReadyData(
         per_magnet=[
