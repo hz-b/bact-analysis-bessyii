@@ -1,3 +1,5 @@
+from typing import Sequence
+
 import numpy as np
 from numpy.typing import ArrayLike
 from .model import (
@@ -66,13 +68,25 @@ def extract_response_matrices_per_steerers(
     ]
     vertical_steerer_names = [datum.name for datum in data.data if datum.name[0] == "V"]
 
+    def reponse_mat(steerer_names: Sequence[str]):
+        if len(steerer_names) > 0:
+            return extract_response_matrices(data, steerer_names)
+        else:
+            return None
+
+    h_mat, v_mat = [
+        reponse_mat(steerer_names)
+        for steerer_names in (horizontal_steerer_names, vertical_steerer_names)
+    ]
+
     return OrbitResponseMatricesPerSteererPlane(
-        horizontal_steerers=extract_response_matrices(data, horizontal_steerer_names),
-        vertical_steerers=extract_response_matrices(data, vertical_steerer_names),
+        horizontal_steerers=h_mat, vertical_steerers=v_mat
     )
 
 
 def stack_response_submatrices(orms: OrbitResponseMatricesPerSteererPlane) -> ArrayLike:
+    assert orms.horizontal_steerers
+    assert orms.vertical_steerers
     return np.vstack(
         [
             np.hstack(
